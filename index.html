@@ -226,6 +226,17 @@ tr:hover td{background:var(--bg2);cursor:pointer}
   <span style="margin-left:auto;cursor:pointer;color:var(--blue)" onclick="sv('conexao',null)">⚙ Conexão</span>
 </div>
 
+
+<div id="demoBanner" style="display:none;background:#92400E;color:#FEF3C7;padding:6px 16px;font-size:11.5px;font-family:var(--mono);align-items:center;justify-content:space-between;flex-shrink:0;gap:12px">
+  <div style="display:flex;align-items:center;gap:8px">
+    <span>⚠ MODO DEMO</span>
+    <span style="opacity:.7">Os dados exibidos são fictícios para demonstração. Sincronize com o Supabase para usar dados reais.</span>
+  </div>
+  <div style="display:flex;gap:8px;flex-shrink:0">
+    <button onclick="limparDemo()" style="padding:3px 12px;border-radius:5px;border:1px solid #FEF3C7;background:transparent;color:#FEF3C7;font-size:11px;cursor:pointer">Limpar dados demo</button>
+    <button onclick="sincronizar()" style="padding:3px 12px;border-radius:5px;border:none;background:#FEF3C7;color:#92400E;font-size:11px;font-weight:600;cursor:pointer">↺ Sincronizar Supabase</button>
+  </div>
+</div>
 <div class="layout">
 
 <!-- DASHBOARD -->
@@ -357,6 +368,7 @@ tr:hover td{background:var(--bg2);cursor:pointer}
       <button class="btn btn-green" onclick="testarConexao()">▶ Testar conexão</button>
       <button class="btn btn-dark" onclick="sincronizar()">↺ Sincronizar dados</button>
       <button class="btn btn-ghost btn-sm" onclick="exportarCSV()">↓ Exportar CSV</button>
+      <button class="btn btn-ghost btn-sm" onclick="limparSupabase()" style="color:var(--red);border-color:var(--red)">🗑 Limpar Supabase</button>
     </div>
     <div class="conn-log" id="connLog">Aguardando...</div>
   </div>
@@ -1181,6 +1193,7 @@ async function sincronizar() {
     var ts = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
     document.getElementById('sbLastSync').textContent='Sync: '+ts;
     logConn('✅ Sincronização completa');
+    setModoDemo(false);
     toast('Dados sincronizados ✓');
   } catch(e) {
     dot.className='sb-dot err'; txt.textContent='Erro sync';
@@ -1225,6 +1238,74 @@ function exportarCSV() {
   } catch(e) { toast('Erro na exportação','error'); }
 }
 
+
+// ── MODO OPERACIONAL vs DEMO ──────────────────────────────────
+var modoDemo = false; // true = dados locais de exemplo
+
+function setModoDemo(val) {
+  modoDemo = val;
+  var dot = document.getElementById('sbDot');
+  var txt = document.getElementById('sbTxt');
+  var sub = document.getElementById('pgSub');
+  var bar = document.getElementById('demoBanner');
+  if (val) {
+    dot.className = 'sb-dot warn';
+    txt.textContent = 'DEMO — dados fictícios';
+    if(sub) sub.textContent = 'ENGEFABRI · MODO DEMO · sincronize para usar dados reais';
+    if(bar) bar.style.display = 'flex';
+  } else {
+    dot.className = 'sb-dot ok';
+    txt.textContent = 'Conectado — dados reais';
+    if(sub) sub.textContent = 'ENGEFABRI · dados reais · Supabase';
+    if(bar) bar.style.display = 'none';
+  }
+}
+
+async function bootSistema() {
+  // Tentar Supabase primeiro
+  try {
+    var r = await fetch(SB_URL+'/rest/v1/ef_ops?select=id&limit=1', {headers:sbHeaders()});
+    if (r.ok) {
+      sbConectado = true;
+      await sincronizar();
+      return;
+    }
+  } catch(e) { console.warn('[EF] Supabase indisponível no boot:', e.message); }
+  // Fallback: dados demo
+  carregarDadosExemplo();
+  setModoDemo(true);
+  renderDash(); renderTblOPs(OPs); gerarAlertas(); renderKanban(); renderTV(); populateSupSelect();
+}
+
+async function limparDemo() {
+  if (!modoDemo) { toast('Sem dados demo para limpar','warn'); return; }
+  if (!confirm('Limpar todos os dados de demonstração? O sistema ficará vazio até sincronizar com o Supabase.')) return;
+  OPs = []; LOGs = []; SUPs = [];
+  setModoDemo(false);
+  renderDash(); renderTblOPs(OPs); renderSup(SUPs); renderSupKpis();
+  try{renderKanban();}catch(e){}
+  toast('Dados demo removidos. Clique ↺ Supabase para carregar dados reais.');
+}
+
+async function limparSupabase() {
+  if (!confirm('ATENÇÃO: Isso vai APAGAR todos os dados de demo do Supabase (ef_ops, ef_logs, ef_sup). Confirmar?')) return;
+  if (!sbConectado) { toast('Conecte ao Supabase primeiro','error'); return; }
+  var log = document.getElementById('connLog');
+  try {
+    // Delete in order (logs first, then sups, then ops)
+    await fetch(SB_URL+'/rest/v1/ef_logs?id=neq.00000000-0000-0000-0000-000000000000', {method:'DELETE',headers:sbHeaders()});
+    if(log) log.textContent += '\nef_logs limpo';
+    await fetch(SB_URL+'/rest/v1/ef_sup?id=neq.00000000-0000-0000-0000-000000000000', {method:'DELETE',headers:sbHeaders()});
+    if(log) log.textContent += '\nef_sup limpo';
+    await fetch(SB_URL+'/rest/v1/ef_ops?id=neq.00000000-0000-0000-0000-000000000000', {method:'DELETE',headers:sbHeaders()});
+    if(log) log.textContent += '\nef_ops limpo';
+    OPs = []; LOGs = []; SUPs = [];
+    renderDash(); renderTblOPs(OPs);
+    toast('Dados demo removidos do Supabase ✓');
+    if(log) log.textContent += '\n✅ Supabase limpo — pronto para dados reais';
+  } catch(e) { toast('Erro ao limpar: '+e.message,'error'); }
+}
+
 // ── RELÓGIO ───────────────────────────────────────────────────
 function updateRel() {
   try {
@@ -1249,18 +1330,10 @@ window.posthog=window.posthog||{capture:function(){},identify:function(){},onFea
 
 document.addEventListener('DOMContentLoaded',function(){
   try {
-    carregarDadosExemplo();
-    renderDash();
-    renderTblOPs(OPs);
-    gerarAlertas();
-    renderKanban();
-    renderTV();
-    populateSupSelect();
+    // Boot: tenta Supabase primeiro, fallback para demo se falhar
+    bootSistema();
     updateRel();
-    document.getElementById('sbDot').className='sb-dot warn';
-    document.getElementById('sbTxt').textContent='Modo local (clique Supabase para sincronizar)';
-    document.getElementById('pgSub').textContent='ENGEFABRI · dados locais · clique ↺ Supabase para sincronizar';
-    console.log('[EF] Boot OK — sistema pronto');
+    console.log('[EF] Boot iniciado');
   } catch(e) {
     console.error('[EF] Boot error:',e);
   }
