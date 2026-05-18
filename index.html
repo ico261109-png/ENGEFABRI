@@ -1109,16 +1109,20 @@ function sbHeaders() {
 
 function sbAtualizar(table, id, data) {
   if (!sbConectado) return;
-  fetch(SB_URL+'/rest/v1/'+table+'?id=eq.'+id, {method:'PATCH',headers:sbHeaders(),body:JSON.stringify(data)})
-    .then(function(r){if(!r.ok)console.warn('[EF] PATCH',table,r.status);})
-    .catch(function(e){console.warn('[EF] PATCH offline:',e.message);});
+  try {
+    fetch(SB_URL+'/rest/v1/'+table+'?id=eq.'+id, {method:'PATCH',headers:sbHeaders(),body:JSON.stringify(data)})
+      .then(function(r){if(!r.ok)console.warn('[EF] PATCH',table,r.status);})
+      .catch(function(e){console.warn('[EF] PATCH:',e.message);});
+  } catch(e) { console.warn('[EF] sbAtualizar ex:', e.message); }
 }
 
 function sbInserir(table, rows) {
   if (!sbConectado) return;
-  fetch(SB_URL+'/rest/v1/'+table, {method:'POST',headers:sbHeaders(),body:JSON.stringify(rows)})
-    .then(function(r){if(!r.ok)r.text().then(function(t){console.warn('[EF] POST',table,r.status,t.substring(0,100));});})
-    .catch(function(e){console.warn('[EF] POST offline:',e.message);});
+  try {
+    fetch(SB_URL+'/rest/v1/'+table, {method:'POST',headers:sbHeaders(),body:JSON.stringify(rows)})
+      .then(function(r){if(!r.ok)r.text().then(function(t){console.warn('[EF] POST',table,r.status,t.substring(0,100));}).catch(function(){});})
+      .catch(function(e){console.warn('[EF] POST:',e.message);});
+  } catch(e) { console.warn('[EF] sbInserir ex:', e.message); }
 }
 
 async function sbCarregar(table, params) {
@@ -1141,70 +1145,127 @@ async function testarConexao() {
   logConn('Testando conexão...');
   var dot = document.getElementById('sbDot');
   var txt = document.getElementById('sbTxt');
+  dot.className = 'sb-dot warn';
+  txt.textContent = 'Testando...';
   try {
-    var r = await fetch(SB_URL+'/rest/v1/ef_ops?select=id&limit=1', {headers:sbHeaders()});
-    if (r.ok) {
+    var controller = new AbortController();
+    var timeout = setTimeout(function(){ controller.abort(); }, 8000);
+    var r = await fetch(SB_URL+'/rest/v1/ef_ops?select=id&limit=1', {
+      headers: sbHeaders(),
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+    var body = '';
+    try { body = await r.text(); } catch(e) {}
+    if (r.ok || r.status === 200) {
       sbConectado = true;
-      dot.className='sb-dot ok'; txt.textContent='Conectado ao Supabase';
-      logConn('✅ Conexão OK — ef_ops acessível');
-      toast('Conectado ao Supabase ✓');
+      dot.className='sb-dot ok'; txt.textContent='Conectado';
+      logConn('✅ HTTP '+r.status+' — Supabase acessível');
+      toast('Conexão OK ✓');
+    } else if (r.status === 403) {
+      dot.className='sb-dot err'; txt.textContent='Bloqueado (403)';
+      logConn('⚠ HTTP 403 — domínio não autorizado no Supabase');
+      logConn('Solução: Supabase → Authentication → URL Configuration → adicionar este domínio');
+      logConn('Ou: Settings → API → copiar chave "anon public" e atualizar o sistema');
+      toast('Domínio bloqueado — veja Conexão para instruções','warn');
+    } else if (r.status === 404) {
+      dot.className='sb-dot err'; txt.textContent='Tabela não encontrada (404)';
+      logConn('⚠ HTTP 404 — tabelas ef_ops/ef_logs/ef_sup não criadas');
+      logConn('Solução: execute o engefabri_sql.sql no Supabase SQL Editor');
+      toast('Execute o SQL das tabelas primeiro','warn');
     } else {
-      var t=await r.text();
-      dot.className='sb-dot err'; txt.textContent='Erro '+r.status;
-      logConn('❌ Erro HTTP '+r.status+': '+t.substring(0,100));
+      dot.className='sb-dot err'; txt.textContent='Erro HTTP '+r.status;
+      logConn('❌ HTTP '+r.status+': '+body.substring(0,120));
     }
   } catch(e) {
-    dot.className='sb-dot err'; txt.textContent='Sem conexão';
-    logConn('❌ Falha de rede: '+e.message);
-    toast('Sem conexão com Supabase','warn');
+    clearTimeout && clearTimeout();
+    dot.className='sb-dot err';
+    if (e.name === 'AbortError') {
+      txt.textContent='Timeout';
+      logConn('❌ Timeout — sem resposta em 8s');
+    } else if (e.message.includes('CORS') || e.message.includes('fetch')) {
+      txt.textContent='Erro CORS/rede';
+      logConn('❌ CORS ou rede: '+e.message);
+      logConn('Adicione este domínio em: Supabase → Auth → URL Configuration');
+    } else {
+      txt.textContent='Erro de rede';
+      logConn('❌ '+e.message);
+    }
+    toast('Sem conexão — usando dados locais','warn');
   }
 }
 
 async function sincronizar() {
   logConn('Iniciando sincronização...');
-  var dot=document.getElementById('sbDot');var txt=document.getElementById('sbTxt');
-  dot.className='sb-dot warn'; txt.textContent='Sincronizando...';
+  var dot=document.getElementById('sbDot');
+  var txt=document.getElementById('sbTxt');
+  try { dot.className='sb-dot warn'; txt.textContent='Sincronizando...'; } catch(e){}
+
   try {
-    // Test connection first
-    var rTest = await fetch(SB_URL+'/rest/v1/ef_ops?select=id&limit=1', {headers:sbHeaders()});
-    if (!rTest.ok) throw new Error('HTTP '+rTest.status);
+    // Teste rápido de conexão com timeout
+    var controller = new AbortController();
+    var tmo = setTimeout(function(){controller.abort();}, 8000);
+    var rTest = await fetch(SB_URL+'/rest/v1/ef_ops?select=id&limit=1', {
+      headers: sbHeaders(), signal: controller.signal
+    });
+    clearTimeout(tmo);
+
+    if (!rTest.ok) {
+      var errBody = '';
+      try { errBody = await rTest.text(); } catch(e){}
+      var msg = 'HTTP '+rTest.status;
+      if (rTest.status===403) msg = 'HTTP 403 — domínio bloqueado. Adicione este domínio no Supabase → Authentication → URL Configuration';
+      if (rTest.status===404) msg = 'HTTP 404 — tabelas não encontradas. Execute engefabri_sql.sql no Supabase';
+      logConn('❌ '+msg);
+      try { dot.className='sb-dot err'; txt.textContent='Erro '+rTest.status; } catch(e){}
+      toast('Sync falhou: '+msg,'warn');
+      return;
+    }
+
     sbConectado = true;
     logConn('✅ Conectado');
 
-    // Load OPs
-    var ops = await sbCarregar('ef_ops','select=*&order=created_at.desc');
-    if (Array.isArray(ops) && ops.length > 0) {
-      OPs = ops; logConn('✅ ef_ops: '+ops.length+' registros');
-    } else { logConn('ℹ ef_ops: vazio ou sem dados novos'); }
+    // Carregar OPs
+    try {
+      var ops = await sbCarregar('ef_ops','select=*&order=created_at.desc');
+      if (Array.isArray(ops)) { OPs = ops; logConn('✅ ef_ops: '+ops.length); }
+    } catch(e) { logConn('⚠ ef_ops: '+e.message); }
 
-    // Load Logs
+    // Carregar Logs
     try {
       var logs = await sbCarregar('ef_logs','select=*&order=created_at.desc&limit=200');
-      if (Array.isArray(logs)) { LOGs = logs; logConn('✅ ef_logs: '+logs.length+' registros'); }
+      if (Array.isArray(logs)) { LOGs = logs; logConn('✅ ef_logs: '+logs.length); }
     } catch(e) { logConn('⚠ ef_logs: '+e.message); }
 
-    // Load Suprimentos
+    // Carregar Suprimentos
     try {
       var sups = await sbCarregar('ef_sup','select=*&order=created_at.desc');
-      if (Array.isArray(sups)) { SUPs = sups; logConn('✅ ef_sup: '+sups.length+' registros'); }
+      if (Array.isArray(sups)) { SUPs = sups; logConn('✅ ef_sup: '+sups.length); }
     } catch(e) { logConn('⚠ ef_sup: '+e.message); }
 
-    dot.className='sb-dot ok'; txt.textContent='Sincronizado';
-    var ts = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-    document.getElementById('sbLastSync').textContent='Sync: '+ts;
-    logConn('✅ Sincronização completa');
+    try {
+      dot.className='sb-dot ok'; txt.textContent='Sincronizado';
+      var ts=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+      document.getElementById('sbLastSync').textContent='Sync: '+ts;
+    } catch(e){}
+    logConn('✅ Completo');
     setModoDemo(false);
-    toast('Dados sincronizados ✓');
+    toast('Sincronizado ✓');
+
   } catch(e) {
-    dot.className='sb-dot err'; txt.textContent='Erro sync';
-    logConn('❌ Sync falhou: '+e.message);
-    toast('Sync falhou — usando dados locais','warn');
+    try { dot.className='sb-dot err'; txt.textContent='Erro'; } catch(ex){}
+    var em = e.name==='AbortError'?'Timeout (8s)':e.message;
+    logConn('❌ Falhou: '+em);
+    toast('Sync falhou — dados locais mantidos','warn');
   }
-  renderDash(); renderTblOPs(OPs);
-  try{gerarAlertas();}catch(e){}
-  populateSupSelect();
-  document.getElementById('sbOps').textContent=OPs.length;
-  document.getElementById('sbSups').textContent=SUPs.length;
+
+  // Sempre re-renderiza com o que tiver (local ou Supabase)
+  try { renderDash(); } catch(e){}
+  try { renderTblOPs(OPs); } catch(e){}
+  try { gerarAlertas(); } catch(e){}
+  try { populateSupSelect(); } catch(e){}
+  try { document.getElementById('sbOps').textContent=OPs.length; } catch(e){}
+  try { document.getElementById('sbSups').textContent=SUPs.length; } catch(e){}
 }
 
 // ── CONEXÃO INFO ──────────────────────────────────────────────
@@ -1261,17 +1322,8 @@ function setModoDemo(val) {
   }
 }
 
-async function bootSistema() {
-  // Tentar Supabase primeiro
-  try {
-    var r = await fetch(SB_URL+'/rest/v1/ef_ops?select=id&limit=1', {headers:sbHeaders()});
-    if (r.ok) {
-      sbConectado = true;
-      await sincronizar();
-      return;
-    }
-  } catch(e) { console.warn('[EF] Supabase indisponível no boot:', e.message); }
-  // Fallback: dados demo
+function bootSistema() {
+  // Apenas inicializa localmente — Supabase é sempre manual
   carregarDadosExemplo();
   setModoDemo(true);
   renderDash(); renderTblOPs(OPs); gerarAlertas(); renderKanban(); renderTV(); populateSupSelect();
@@ -1330,10 +1382,17 @@ window.posthog=window.posthog||{capture:function(){},identify:function(){},onFea
 
 document.addEventListener('DOMContentLoaded',function(){
   try {
-    // Boot: tenta Supabase primeiro, fallback para demo se falhar
-    bootSistema();
+    // Boot SEGURO: sempre começa com dados locais, NUNCA toca Supabase automaticamente
+    carregarDadosExemplo();
+    setModoDemo(true);
+    renderDash();
+    renderTblOPs(OPs);
+    gerarAlertas();
+    renderKanban();
+    renderTV();
+    populateSupSelect();
     updateRel();
-    console.log('[EF] Boot iniciado');
+    console.log('[EF] Boot OK — modo local seguro');
   } catch(e) {
     console.error('[EF] Boot error:',e);
   }
