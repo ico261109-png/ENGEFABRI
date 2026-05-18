@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+<script>
+// Anti-crash: suprimir PostHog e erros externos
+window.posthog=window.posthog||{capture:function(){},identify:function(){},onFeatureFlags:function(f){try{if(f)f([]);}catch(e){}},isFeatureEnabled:function(){return false;},getFeatureFlag:function(){return null;},init:function(){return this;}};
+window.addEventListener('unhandledrejection',function(e){console.warn('[EF]',e.reason);e.preventDefault();});
+window.onerror=function(m,s,l,c,e){if(String(m).toLowerCase().includes('posthog')||String(m).includes('flag key'))return true;};
+</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ENGEFABRI · Gestão Operacional</title>
@@ -493,15 +499,19 @@ function normOP(o) {
 
 function normLog(l) {
   if (!l || typeof l !== 'object') return null;
+  var tiposValidos = ['STATUS','CRIACAO','EDICAO','SUPRIMENTO','OBSERVACAO','PINTURA','EXPEDICAO','NAO_CONFORMIDADE'];
   return {
-    id:          String(l.id || genId()),
-    op_id:       l.op_id ? String(l.op_id) : null,
-    op_numero:   String(l.op_numero || ''),
-    tipo:        String(l.tipo || 'LOG'),
-    descricao:   String(l.descricao || ''),
-    responsavel: String(l.responsavel || ''),
-    obs:         String(l.obs || ''),
-    created_at:  String(l.created_at || new Date().toISOString())
+    id:              String(l.id || genId()),
+    numero:          String(l.numero || ''),
+    op_id:           l.op_id ? String(l.op_id) : null,
+    op_numero:       String(l.op_numero || ''),
+    tipo:            tiposValidos.includes(l.tipo) ? l.tipo : 'OBSERVACAO',
+    status_anterior: l.status_anterior ? String(l.status_anterior) : null,
+    status_novo:     l.status_novo ? String(l.status_novo) : null,
+    descricao:       String(l.descricao || ''),
+    responsavel:     String(l.responsavel || ''),
+    obs:             String(l.obs || ''),
+    created_at:      String(l.created_at || new Date().toISOString())
   };
 }
 
@@ -511,7 +521,9 @@ function normSup(s) {
   var urgValid = ['CRITICO','ALTA','NORMAL'];
   return {
     id:               String(s.id || genId()),
+    numero:           String(s.numero || ''),
     op_id:            s.op_id ? String(s.op_id) : null,
+    op_numero:        s.op_numero ? String(s.op_numero) : null,
     material:         String(s.material || 'SEM MATERIAL'),
     descricao:        String(s.descricao || ''),
     quantidade:       String(s.quantidade || ''),
@@ -559,6 +571,39 @@ var supAt = null;
 var nextId = 1;
 
 function genId() { return 'local-' + (nextId++) + '-' + Date.now(); }
+
+function gerarNumeroOP() {
+  var ano = new Date().getFullYear();
+  var existentes = OPs.map(function(o) {
+    var m = (o.numero||'').match(/^OP-\d{4}-(\d+)$/);
+    return m ? parseInt(m[1]) : 0;
+  });
+  var max = existentes.length ? Math.max.apply(null, existentes) : 0;
+  var seq = String(max + 1).padStart(3, '0');
+  return 'OP-' + ano + '-' + seq;
+}
+
+function gerarNumeroSUP() {
+  var ano = new Date().getFullYear();
+  var existentes = SUPs.map(function(s) {
+    var m = (s.numero||'').match(/^SUP-\d{4}-(\d+)$/);
+    return m ? parseInt(m[1]) : 0;
+  });
+  var max = existentes.length ? Math.max.apply(null, existentes) : 0;
+  var seq = String(max + 1).padStart(3, '0');
+  return 'SUP-' + ano + '-' + seq;
+}
+
+function gerarNumeroLOG() {
+  var ano = new Date().getFullYear();
+  var existentes = LOGs.map(function(l) {
+    var m = (l.numero||'').match(/^LOG-\d{4}-(\d+)$/);
+    return m ? parseInt(m[1]) : 0;
+  });
+  var max = existentes.length ? Math.max.apply(null, existentes) : 0;
+  var seq = String(max + 1).padStart(3, '0');
+  return 'LOG-' + ano + '-' + seq;
+}
 
 // ── DADOS DE EXEMPLO (carregam offline) ───────────────────────
 function carregarDadosExemplo() {
@@ -785,7 +830,7 @@ function moverOP(id, novoSt) {
     var op = OPs.find(function(o){return o.id===id;});
     if (!op || op.status===novoSt) return;
     var ant = op.status; op.status = novoSt; op.updated_at = new Date().toISOString();
-    regLog(id, op.numero, 'STATUS', ant+' → '+novoSt, 'Sistema', '');
+    regLog(id, op.numero, 'STATUS', ant+' → '+novoSt, 'Sistema', '', ant, novoSt);
     renderKanban(); renderDash();
     toast('→ '+novoSt);
     sbAtualizar('ef_ops', id, {status:novoSt});
@@ -828,7 +873,7 @@ function salvarOP() {
       var id = genId();
       payload.id = id; payload.created_at = new Date().toISOString();
       OPs.unshift(payload);
-      regLog(id, n, 'CRIAÇÃO', 'OP criada', payload.responsavel, '');
+      regLog(id, n, 'CRIACAO', 'OP criada — status inicial: '+payload.status, payload.responsavel, '', null, payload.status);
       sbInserir('ef_ops', [payload]);
       toast('OP criada');
     }
@@ -936,7 +981,7 @@ function confirmarAv() {
     var resp = document.getElementById('avRe').value.trim()||o.responsavel||'Sistema';
     var ant = o.status;
     o.status = ns; o.updated_at = new Date().toISOString();
-    regLog(opAv, o.numero, 'AVANÇO', ant+' → '+ns, resp, obs);
+    regLog(opAv, o.numero, 'STATUS', ant+' → '+ns, resp, obs, ant, ns);
     sbAtualizar('ef_ops', opAv, {status:ns});
     cm('mAv'); renderDash(); renderTblOPs(OPs);
     if(document.getElementById('view-kanban').classList.contains('active'))renderKanban();
@@ -945,11 +990,26 @@ function confirmarAv() {
 }
 
 // ── LOG ───────────────────────────────────────────────────────
-function regLog(opId, numero, tipo, desc, resp, obs) {
+function regLog(opId, numero, tipo, desc, resp, obs, stAnt, stNovo) {
   try {
-    var l = {id:genId(),op_id:opId,op_numero:numero,tipo:tipo,descricao:desc,responsavel:resp,obs:obs,created_at:new Date().toISOString()};
+    var logNum = gerarNumeroLOG();
+    var l = {
+      id: genId(), numero: logNum,
+      op_id: opId, op_numero: numero,
+      tipo: tipo, descricao: desc,
+      status_anterior: stAnt || null,
+      status_novo: stNovo || null,
+      responsavel: resp, obs: obs||'',
+      created_at: new Date().toISOString()
+    };
     LOGs.unshift(l);
-    sbInserir('ef_logs', [{op_id:opId,op_numero:numero,tipo:tipo,descricao:desc,responsavel:resp,obs:obs}]);
+    sbInserir('ef_logs', [{
+      numero: logNum, op_id: opId, op_numero: numero,
+      tipo: tipo, descricao: desc,
+      status_anterior: stAnt || null,
+      status_novo: stNovo || null,
+      responsavel: resp, obs: obs||''
+    }]);
   } catch(e) { console.warn('regLog:', e); }
 }
 
@@ -957,12 +1017,17 @@ function renderLog() {
   try {
     var el = document.getElementById('tLog');
     if (!LOGs.length) { el.innerHTML='<div class="empty">Nenhuma movimentação.</div>'; return; }
-    el.innerHTML='<table><thead><tr><th>Data</th><th>OP</th><th>Tipo</th><th>Descrição</th><th>Resp.</th></tr></thead><tbody>'+
+    el.innerHTML='<table><thead><tr><th>ID</th><th>Data</th><th>OP</th><th>De → Para</th><th>Tipo</th><th>Descrição</th><th>Resp.</th></tr></thead><tbody>'+
       LOGs.slice(0,50).map(function(l){
-        return'<tr><td class="tm" style="white-space:nowrap">'+fmtD(l.created_at)+'</td>'+
-          '<td class="tm tb">'+esc(l.op_numero||'–')+'</td>'+
+        var stFlow = (l.status_anterior||l.status_novo) ?
+          '<span style="font-size:10px;color:var(--text3);font-family:var(--mono)">'+(l.status_anterior||'–')+' → '+(l.status_novo||'–')+'</span>' : '–';
+        return'<tr>'+
+          '<td class="tm" style="font-size:10px;color:var(--text4)">'+esc(l.numero||'–')+'</td>'+
+          '<td class="tm" style="white-space:nowrap;font-size:11px">'+fmtD(l.created_at)+'</td>'+
+          '<td class="tm tb" style="font-size:11px">'+esc(l.op_numero||'–')+'</td>'+
+          '<td>'+stFlow+'</td>'+
           '<td><span class="badge s-in" style="font-size:9px">'+esc(l.tipo||'–')+'</span></td>'+
-          '<td style="font-size:12px">'+esc(l.descricao||'–')+'</td>'+
+          '<td style="font-size:12px" class="tc">'+esc(l.descricao||'–')+'</td>'+
           '<td style="font-size:11px;color:var(--text3)">'+esc(l.responsavel||'–')+'</td></tr>';
       }).join('')+'</tbody></table>';
   } catch(e) {}
@@ -1129,6 +1194,7 @@ function salvarSup() {
     if(!mat){toast('Material obrigatório','error');return;}
     var payload={
       id:genId(),
+      numero:gerarNumeroSUP(),
       op_id:document.getElementById('sOP').value||null,
       material:mat,
       descricao:document.getElementById('sDesc').value.trim(),
@@ -1469,13 +1535,13 @@ document.addEventListener('DOMContentLoaded',function(){
     // Boot SEGURO: sempre começa com dados locais, NUNCA toca Supabase automaticamente
     carregarDadosExemplo();
     setModoDemo(true);
-    renderDash();
-    renderTblOPs(OPs);
-    gerarAlertas();
-    renderKanban();
-    renderTV();
-    populateSupSelect();
-    updateRel();
+    try{renderDash();}catch(e){console.error('[EF] renderDash:',e);}
+    try{renderTblOPs(OPs);}catch(e){console.error('[EF] renderTblOPs:',e);}
+    try{gerarAlertas();}catch(e){console.error('[EF] gerarAlertas:',e);}
+    try{renderKanban();}catch(e){console.error('[EF] renderKanban:',e);}
+    try{renderTV();}catch(e){console.error('[EF] renderTV:',e);}
+    try{populateSupSelect();}catch(e){}
+    try{updateRel();}catch(e){}
     console.log('[EF] Boot OK — modo local seguro');
   } catch(e) {
     console.error('[EF] Boot error:',e);
