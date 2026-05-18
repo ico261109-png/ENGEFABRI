@@ -465,6 +465,90 @@ var SB_URL = 'https://ncgehcjugydjjbraclha.supabase.co';
 var SB_KEY = 'sb_publishable_2GfOySfDg-Zt3oU4qMgvOw_KyY6_DjP';
 var sbConectado = false;
 
+
+// ── NORMALIZAÇÃO DEFENSIVA DOS DADOS ─────────────────────────
+// Garante que qualquer dado vindo do Supabase seja seguro para renderizar
+
+function normOP(o) {
+  if (!o || typeof o !== 'object') return null;
+  var statusValid = ['aguardando','corte','dobra','montagem','solda','pintura','inspecao','expedicao','montagem_externa','concluido'];
+  var priorValid  = ['NORMAL','ALTA','URGENTE'];
+  var catValid    = ['reservatorio','estrutura','caldeiraria','equipamento','outro'];
+  return {
+    id:          String(o.id || genId()),
+    numero:      String(o.numero || 'SEM-NUMERO'),
+    cliente:     String(o.cliente || ''),
+    produto:     String(o.produto || ''),
+    categoria:   catValid.includes(o.categoria) ? o.categoria : 'outro',
+    descricao:   String(o.descricao || ''),
+    status:      statusValid.includes(o.status) ? o.status : 'aguardando',
+    prioridade:  priorValid.includes(o.prioridade) ? o.prioridade : 'NORMAL',
+    prazo:       normDate(o.prazo),
+    responsavel: String(o.responsavel || ''),
+    obs:         String(o.obs || ''),
+    created_at:  String(o.created_at || new Date().toISOString()),
+    updated_at:  String(o.updated_at || new Date().toISOString())
+  };
+}
+
+function normLog(l) {
+  if (!l || typeof l !== 'object') return null;
+  return {
+    id:          String(l.id || genId()),
+    op_id:       l.op_id ? String(l.op_id) : null,
+    op_numero:   String(l.op_numero || ''),
+    tipo:        String(l.tipo || 'LOG'),
+    descricao:   String(l.descricao || ''),
+    responsavel: String(l.responsavel || ''),
+    obs:         String(l.obs || ''),
+    created_at:  String(l.created_at || new Date().toISOString())
+  };
+}
+
+function normSup(s) {
+  if (!s || typeof s !== 'object') return null;
+  var stValid  = ['solicitado','cotando','comprado','parcial','entregue','atrasado','cancelado'];
+  var urgValid = ['CRITICO','ALTA','NORMAL'];
+  return {
+    id:               String(s.id || genId()),
+    op_id:            s.op_id ? String(s.op_id) : null,
+    material:         String(s.material || 'SEM MATERIAL'),
+    descricao:        String(s.descricao || ''),
+    quantidade:       String(s.quantidade || ''),
+    urgencia:         urgValid.includes(s.urgencia) ? s.urgencia : 'NORMAL',
+    status:           stValid.includes(s.status) ? s.status : 'solicitado',
+    prazo_necessario: normDate(s.prazo_necessario),
+    previsao_entrega: normDate(s.previsao_entrega),
+    responsavel:      String(s.responsavel || ''),
+    fornecedor:       String(s.fornecedor || ''),
+    obs:              String(s.obs || ''),
+    created_at:       String(s.created_at || new Date().toISOString()),
+    updated_at:       String(s.updated_at || new Date().toISOString())
+  };
+}
+
+function normDate(d) {
+  if (!d) return null;
+  try {
+    var s = String(d).split('T')[0];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+    var dt = new Date(s+'T12:00:00');
+    return isNaN(dt.getTime()) ? null : s;
+  } catch(e) { return null; }
+}
+
+function normArray(arr, fn) {
+  if (!Array.isArray(arr)) return [];
+  var result = [];
+  for (var i = 0; i < arr.length; i++) {
+    try {
+      var n = fn(arr[i]);
+      if (n) result.push(n);
+    } catch(e) { console.warn('[EF] normArray skip:', e.message); }
+  }
+  return result;
+}
+
 // ── ESTADO LOCAL ──────────────────────────────────────────────
 var OPs = [];
 var LOGs = [];
@@ -1228,19 +1312,19 @@ async function sincronizar() {
     // Carregar OPs
     try {
       var ops = await sbCarregar('ef_ops','select=*&order=created_at.desc');
-      if (Array.isArray(ops)) { OPs = ops; logConn('✅ ef_ops: '+ops.length); }
+      if (Array.isArray(ops)) { OPs = normArray(ops, normOP); logConn('✅ ef_ops: '+OPs.length+' ('+ops.length+' brutos)'); }
     } catch(e) { logConn('⚠ ef_ops: '+e.message); }
 
     // Carregar Logs
     try {
       var logs = await sbCarregar('ef_logs','select=*&order=created_at.desc&limit=200');
-      if (Array.isArray(logs)) { LOGs = logs; logConn('✅ ef_logs: '+logs.length); }
+      if (Array.isArray(logs)) { LOGs = normArray(logs, normLog); logConn('✅ ef_logs: '+LOGs.length); }
     } catch(e) { logConn('⚠ ef_logs: '+e.message); }
 
     // Carregar Suprimentos
     try {
       var sups = await sbCarregar('ef_sup','select=*&order=created_at.desc');
-      if (Array.isArray(sups)) { SUPs = sups; logConn('✅ ef_sup: '+sups.length); }
+      if (Array.isArray(sups)) { SUPs = normArray(sups, normSup); logConn('✅ ef_sup: '+SUPs.length); }
     } catch(e) { logConn('⚠ ef_sup: '+e.message); }
 
     try {
