@@ -1,0 +1,1229 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<script>
+// Suprimir erros de analytics externos (PostHog/Netlify)
+(function(){
+  var oe = window.onerror;
+  window.onerror = function(msg,src,l,c,err){
+    if(String(msg).toLowerCase().includes('posthog')||String(msg).includes('headerUpgrade')||String(msg).includes('flag key'))return true;
+    return oe?oe.apply(this,arguments):false;
+  };
+  var ce = console.error.bind(console);
+  console.error = function(){
+    var m = Array.from(arguments).join(' ');
+    if(m.includes('posthog')||m.includes('PostHog')||m.includes('flag key'))return;
+    ce.apply(console,arguments);
+  };
+  window.posthog = window.posthog || {
+    capture:function(){},identify:function(){},
+    onFeatureFlags:function(fn){if(fn)fn([]);},
+    isFeatureEnabled:function(){return false;},
+    getFeatureFlag:function(){return null;},
+    init:function(){return this;}
+  };
+})();
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ENGEFABRI · Gestão Operacional Industrial</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<style>
+:root{
+  --bg:#F5F2ED;--bg2:#EDE9E2;--bg3:#E4E0D7;--bg4:#D8D3C8;
+  --card:#FAFAF7;--border:#D0CAC0;--border2:#BDB7AB;
+  --text:#1C1917;--text2:#44403C;--text3:#78716C;--text4:#A8A29E;
+  --ink:#1C1917;
+  --red:#DC2626;--orange:#EA580C;--yellow:#CA8A04;--green:#16A34A;--blue:#2563EB;--purple:#7C3AED;
+  --red-bg:#FEF2F2;--orange-bg:#FFF7ED;--yellow-bg:#FEFCE8;--green-bg:#F0FDF4;--blue-bg:#EFF6FF;
+  --gold:#D97706;--gold2:#B45309;
+  --sans:'DM Sans',system-ui,sans-serif;--mono:'DM Mono',monospace;
+  --r:7px;--r2:12px;--shadow:0 1px 3px rgba(0,0,0,.07),0 1px 2px rgba(0,0,0,.05);
+  --shadow2:0 8px 24px rgba(0,0,0,.1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:15px}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;overflow:hidden;height:100vh;display:flex;flex-direction:column}
+
+/* TOPBAR */
+.topbar{height:50px;flex-shrink:0;background:var(--ink);color:#fff;display:flex;align-items:center;z-index:100;border-bottom:1px solid rgba(255,255,255,.07)}
+.tb-brand{display:flex;align-items:center;gap:10px;padding:0 18px;border-right:1px solid rgba(255,255,255,.09);height:100%;min-width:190px}
+.tb-logo{width:26px;height:26px;border-radius:6px;background:linear-gradient(135deg,#F59E0B,#B45309);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;font-weight:500;color:#fff;flex-shrink:0}
+.tb-name{font-family:var(--mono);font-size:12.5px;font-weight:500;letter-spacing:.05em}
+.tb-sub{font-size:9.5px;color:rgba(255,255,255,.35);font-family:var(--mono);margin-top:1px}
+.tb-nav{display:flex;height:100%;flex:1;overflow-x:auto}
+.tb-nav::-webkit-scrollbar{display:none}
+.nav-item{display:flex;align-items:center;gap:6px;padding:0 15px;height:100%;cursor:pointer;font-size:12.5px;font-weight:500;color:rgba(255,255,255,.45);border-bottom:2px solid transparent;transition:all .14s;white-space:nowrap;user-select:none}
+.nav-item:hover{color:rgba(255,255,255,.75)}
+.nav-item.active{color:#fff;border-bottom-color:#F59E0B}
+.nav-item .ni{font-size:14px}
+.tb-right{display:flex;align-items:center;gap:8px;padding:0 14px;margin-left:auto;flex-shrink:0}
+.tb-btn{padding:6px 14px;border-radius:6px;border:none;font-size:12px;font-weight:500;cursor:pointer;font-family:var(--sans);transition:all .13s}
+.tb-btn-gold{background:#F59E0B;color:#1C1917}
+.tb-btn-gold:hover{background:#D97706}
+.tb-btn-ghost{background:rgba(255,255,255,.07);color:rgba(255,255,255,.6)}
+.tb-btn-ghost:hover{background:rgba(255,255,255,.12);color:#fff}
+.badge-alert{min-width:17px;height:17px;border-radius:9px;background:var(--red);color:#fff;font-size:9.5px;font-weight:700;font-family:var(--mono);display:flex;align-items:center;justify-content:center;padding:0 4px}
+
+/* LAYOUT */
+.layout{display:flex;flex:1;overflow:hidden}
+.view{display:none;flex:1;overflow-y:auto;padding:22px;flex-direction:column;gap:18px}
+.view.active{display:flex}
+
+/* PAGE HEADER */
+.pg-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.pg-title{font-size:21px;font-weight:700;letter-spacing:-.02em}
+.pg-sub{font-size:12.5px;color:var(--text3);margin-top:2px;font-family:var(--mono)}
+.pg-actions{display:flex;gap:8px;flex-shrink:0}
+
+/* BUTTONS */
+.btn{padding:7px 16px;border-radius:var(--r);border:none;font-size:12.5px;font-weight:500;cursor:pointer;font-family:var(--sans);transition:all .13s;display:inline-flex;align-items:center;gap:6px}
+.btn-dark{background:var(--ink);color:#fff}.btn-dark:hover{background:#333}
+.btn-gold{background:#F59E0B;color:var(--ink)}.btn-gold:hover{background:#D97706}
+.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border)}.btn-ghost:hover{background:var(--bg2)}
+.btn-red{background:var(--red);color:#fff}
+.btn-sm{padding:5px 11px;font-size:11.5px}
+
+/* KPI ROW */
+.kpi-row{display:grid;gap:10px}
+.kpi-row-6{grid-template-columns:repeat(6,1fr)}
+.kpi-row-4{grid-template-columns:repeat(4,1fr)}
+.kpi-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r2);padding:14px 16px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--ink)}
+.kpi-card.kc-red::before{background:var(--red)}
+.kpi-card.kc-orange::before{background:var(--orange)}
+.kpi-card.kc-green::before{background:var(--green)}
+.kpi-card.kc-gold::before{background:var(--gold)}
+.kpi-card.kc-blue::before{background:var(--blue)}
+.kpi-label{font-size:10px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px}
+.kpi-val{font-size:26px;font-weight:700;font-family:var(--mono);color:var(--text);letter-spacing:-.02em}
+.kpi-val.red{color:var(--red)}.kpi-val.orange{color:var(--orange)}.kpi-val.green{color:var(--green)}.kpi-val.gold{color:var(--gold)}.kpi-val.blue{color:var(--blue)}
+.kpi-meta{font-size:10.5px;color:var(--text3);margin-top:3px}
+
+/* TABLE */
+.tbl-wrap{background:var(--card);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;box-shadow:var(--shadow)}
+.tbl-head{padding:13px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.tbl-title{font-size:13px;font-weight:600}
+table{width:100%;border-collapse:collapse}
+th{padding:8px 14px;text-align:left;font-size:10px;font-weight:600;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.07em;border-bottom:1px solid var(--border);background:var(--bg2);white-space:nowrap}
+td{padding:9px 14px;font-size:13px;color:var(--text2);border-bottom:1px solid var(--bg2)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--bg2);cursor:pointer}
+.t-mono{font-family:var(--mono);font-size:11.5px}
+.t-bold{font-weight:600;color:var(--text)}
+.t-clip{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.t-sm{font-size:12px;color:var(--text3)}
+
+/* BADGES / STATUS */
+.badge{display:inline-flex;align-items:center;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:600;font-family:var(--mono);text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+.s-aguardando{background:#F3F4F6;color:#6B7280}
+.s-corte{background:#E0F2FE;color:#0369A1}
+.s-dobra{background:#EDE9FE;color:var(--purple)}
+.s-montagem{background:#FEF3C7;color:#92400E}
+.s-solda{background:#FEE2E2;color:var(--red)}
+.s-pintura{background:#DBEAFE;color:var(--blue)}
+.s-inspecao{background:#D1FAE5;color:#065F46}
+.s-expedicao{background:#FEF3C7;color:var(--gold2);border:1px solid #FDE68A}
+.s-montagem-ext{background:#EDE9FE;color:var(--purple)}
+.s-concluido{background:#DCFCE7;color:var(--green)}
+/* Suprimentos */
+.sup-solicitado{background:#F3F4F6;color:#6B7280}
+.sup-cotando{background:#DBEAFE;color:var(--blue)}
+.sup-comprado{background:#FEF3C7;color:#92400E}
+.sup-parcial{background:#FED7AA;color:#C2410C}
+.sup-entregue{background:#DCFCE7;color:var(--green)}
+.sup-atrasado{background:#FEE2E2;color:var(--red)}
+.sup-cancelado{background:#F3F4F6;color:#9CA3AF;text-decoration:line-through}
+/* Urgência */
+.urg-critico{background:#FEE2E2;color:var(--red)}
+.urg-alta{background:#FED7AA;color:#C2410C}
+.urg-normal{background:#E0E7FF;color:#4338CA}
+
+/* KANBAN */
+.kanban-wrap{display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;flex:1;min-height:0}
+.kanban-wrap::-webkit-scrollbar{height:6px}
+.kanban-wrap::-webkit-scrollbar-track{background:var(--bg2)}
+.kanban-wrap::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+.kb-col{min-width:195px;max-width:210px;flex-shrink:0;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);display:flex;flex-direction:column;max-height:100%}
+.kb-col-hd{padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--bg2);border-radius:var(--r2) var(--r2) 0 0}
+.kb-col-title{font-size:10.5px;font-weight:700;font-family:var(--mono);text-transform:uppercase;letter-spacing:.07em}
+.kb-count{min-width:18px;height:18px;border-radius:9px;background:var(--border2);color:var(--text2);font-size:9.5px;font-weight:700;font-family:var(--mono);display:flex;align-items:center;justify-content:center;padding:0 4px}
+.kb-cards{padding:7px;display:flex;flex-direction:column;gap:5px;overflow-y:auto;flex:1}
+.kb-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:10px;cursor:grab;transition:all .13s;box-shadow:var(--shadow)}
+.kb-card:hover{box-shadow:var(--shadow2);transform:translateY(-1px)}
+.kb-card.dragging{opacity:.45;transform:scale(.97)}
+.kb-col.drag-over{background:#FFFBEE;border-color:#F59E0B}
+.kbc-op{font-size:9.5px;color:var(--text3);font-family:var(--mono);margin-bottom:3px}
+.kbc-title{font-size:12.5px;font-weight:600;color:var(--text);margin-bottom:5px;line-height:1.35}
+.kbc-cliente{font-size:11px;color:var(--text3);margin-bottom:7px}
+.kbc-foot{display:flex;align-items:center;justify-content:space-between}
+.kbc-prazo{font-size:10px;font-family:var(--mono)}
+.kbc-prazo.late{color:var(--red);font-weight:700}
+.kbc-prazo.warn{color:var(--orange)}
+.kbc-prazo.ok{color:var(--green)}
+.kbc-p{font-size:9px;font-weight:700;font-family:var(--mono);padding:2px 6px;border-radius:4px;text-transform:uppercase}
+.kbc-p.urgente{background:#FEE2E2;color:var(--red)}
+.kbc-p.alta{background:#FED7AA;color:#C2410C}
+.kbc-p.normal{background:#E0E7FF;color:#4338CA}
+
+/* ALERTAS */
+.alert-list{display:flex;flex-direction:column;gap:7px}
+.alert-item{background:var(--card);border:1px solid var(--border);border-left:3px solid var(--red);border-radius:var(--r);padding:10px 14px;display:flex;align-items:flex-start;gap:10px;box-shadow:var(--shadow)}
+.alert-item.warn{border-left-color:var(--orange)}
+.alert-item.info{border-left-color:var(--blue)}
+.alert-item.ok{border-left-color:var(--green)}
+.alert-icon{font-size:14px;flex-shrink:0;margin-top:1px}
+.alert-txt{font-size:12.5px;color:var(--text2);line-height:1.5;flex:1}
+.alert-txt strong{color:var(--text);font-weight:600}
+.alert-time{font-size:10.5px;color:var(--text3);font-family:var(--mono);flex-shrink:0}
+
+/* TV */
+.tv-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;height:100%}
+.tv-panel{background:var(--card);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;display:flex;flex-direction:column}
+.tv-hd{padding:12px 16px;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.tv-hd-title{font-size:12px;font-weight:700;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em}
+.tv-hd-count{font-size:22px;font-weight:700;font-family:var(--mono)}
+.tv-row{padding:9px 14px;border-bottom:1px solid var(--bg2);display:flex;align-items:center;gap:10px}
+.tv-op{font-family:var(--mono);font-size:11px;color:var(--text3);min-width:90px;flex-shrink:0}
+.tv-desc{font-size:13px;font-weight:500;flex:1}
+.tv-prazo{font-family:var(--mono);font-size:11.5px;font-weight:700;flex-shrink:0}
+.tv-prazo.late{color:var(--red)}.tv-prazo.warn{color:var(--orange)}.tv-prazo.ok{color:var(--green)}
+
+/* RASTREABILIDADE */
+.rastr-wrap{display:flex;flex-direction:column;gap:0}
+.rastr-item{display:flex;gap:12px;padding:9px 0;position:relative}
+.rastr-item::before{content:'';position:absolute;left:11px;top:26px;bottom:-9px;width:1px;background:var(--border)}
+.rastr-item:last-child::before{display:none}
+.rastr-dot{width:23px;height:23px;border-radius:50%;background:var(--bg3);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;z-index:1}
+.rastr-dot.done{background:var(--green);border-color:var(--green);color:#fff}
+.rastr-dot.active{background:var(--ink);border-color:var(--ink);color:#fff}
+.rastr-etapa{font-size:12.5px;font-weight:600;color:var(--text)}
+.rastr-meta{font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:1px}
+.rastr-obs{font-size:12px;color:var(--text2);margin-top:4px;background:var(--bg2);padding:5px 9px;border-radius:var(--r)}
+
+/* MODAL */
+.modal-bg{display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.35);backdrop-filter:blur(3px);align-items:center;justify-content:center;padding:16px}
+.modal-bg.open{display:flex}
+.modal{background:var(--card);border:1px solid var(--border);border-radius:16px;width:100%;max-width:620px;max-height:92vh;overflow-y:auto;box-shadow:var(--shadow2);animation:mup .18s ease}
+.modal-lg{max-width:740px}
+@keyframes mup{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+.modal-hd{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-title{font-size:15px;font-weight:700}
+.modal-close{width:30px;height:30px;border-radius:7px;border:1px solid var(--border);background:transparent;cursor:pointer;font-size:14px;color:var(--text3);display:flex;align-items:center;justify-content:center}
+.modal-close:hover{background:var(--bg2)}
+.modal-body{padding:22px}
+.modal-foot{padding:14px 22px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end}
+
+/* FORM */
+.fg{display:flex;flex-direction:column;gap:5px}
+.fg-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.fg-full{grid-column:1/-1}
+.fg-label{font-size:10.5px;font-weight:600;color:var(--text2);font-family:var(--mono);text-transform:uppercase;letter-spacing:.04em}
+.fg-input,.fg-sel,.fg-ta{padding:8px 11px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);font-size:13px;color:var(--text);font-family:var(--sans);outline:none;transition:border-color .13s;width:100%}
+.fg-input:focus,.fg-sel:focus,.fg-ta:focus{border-color:var(--ink)}
+.fg-ta{resize:vertical;min-height:72px}
+
+/* FILTER */
+.filter-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.s-input{padding:7px 12px;border-radius:var(--r);border:1px solid var(--border);background:var(--card);font-size:13px;color:var(--text);font-family:var(--sans);outline:none;min-width:200px}
+.s-input:focus{border-color:var(--ink)}
+.f-sel{padding:7px 11px;border-radius:var(--r);border:1px solid var(--border);background:var(--card);font-size:13px;color:var(--text);font-family:var(--sans);outline:none}
+
+/* EMPTY / LOADING */
+.empty{padding:44px;text-align:center;color:var(--text3);font-family:var(--mono);font-size:12px}
+.empty-icon{font-size:28px;margin-bottom:8px}
+.loading{padding:36px;text-align:center;color:var(--text3)}
+.spinner{width:22px;height:22px;border:2px solid var(--border);border-top-color:var(--ink);border-radius:50%;animation:spin .65s linear infinite;margin:0 auto 10px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* SUPRIMENTOS — cards especiais */
+.sup-alert-bar{background:var(--red-bg);border:1px solid #FECACA;border-radius:var(--r);padding:10px 14px;display:flex;align-items:center;gap:10px;font-size:13px;font-weight:500;color:var(--red)}
+
+/* TOAST */
+#toastWrap{position:fixed;bottom:20px;right:20px;display:flex;flex-direction:column;gap:7px;z-index:9999}
+
+/* RESPONSIVE */
+@media(max-width:900px){
+  .kpi-row-6{grid-template-columns:repeat(3,1fr)}
+  .kpi-row-4{grid-template-columns:repeat(2,1fr)}
+  .tv-grid{grid-template-columns:1fr}
+  .fg-grid{grid-template-columns:1fr}
+  .view{padding:14px;gap:14px}
+  .nav-item{padding:0 10px;font-size:11.5px}
+}
+@media(max-width:600px){
+  .kpi-row-6,.kpi-row-4{grid-template-columns:repeat(2,1fr)}
+}
+@media print{
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  body{overflow:auto;height:auto;background:#fff;color:#000;font-family:Arial,sans-serif}
+  .topbar,.tb-right,button,.btn,.pg-actions,.filter-bar{display:none!important}
+  .layout{display:block;overflow:visible}
+  .view{display:flex!important;overflow:visible;padding:0}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="tb-brand">
+    <div class="tb-logo">EF</div>
+    <div><div class="tb-name">ENGEFABRI</div><div class="tb-sub">Gestão Operacional</div></div>
+  </div>
+  <nav class="tb-nav">
+    <div class="nav-item active" onclick="sv('dashboard',this)"><span class="ni">◈</span> Dashboard</div>
+    <div class="nav-item" onclick="sv('ops',this)"><span class="ni">◧</span> Ordens de Produção</div>
+    <div class="nav-item" onclick="sv('kanban',this)"><span class="ni">⊟</span> Kanban</div>
+    <div class="nav-item" onclick="sv('suprimentos',this)"><span class="ni">📦</span> Suprimentos</div>
+    <div class="nav-item" onclick="sv('rastreabilidade',this)"><span class="ni">◎</span> Rastreabilidade</div>
+    <div class="nav-item" onclick="sv('alertas',this)"><span class="ni">⚠</span> Alertas <div class="badge-alert" id="badgeAlertas">0</div></div>
+    <div class="nav-item" onclick="sv('tv',this)"><span class="ni">▣</span> Painel TV</div>
+    <div class="nav-item" onclick="sv('log',this)"><span class="ni">≡</span> Log</div>
+  </nav>
+  <div class="tb-right">
+    <span style="font-family:var(--mono);font-size:10.5px;color:rgba(255,255,255,.35)" id="tbRelogio"></span>
+    <button class="tb-btn tb-btn-gold" onclick="abrirNovaOP()">+ Nova OP</button>
+    <button class="tb-btn tb-btn-ghost" onclick="exportarCSV()">↓ CSV</button>
+    <button class="tb-btn tb-btn-ghost" onclick="loadAll()">↻</button>
+  </div>
+</header>
+
+<div class="layout">
+
+<!-- DASHBOARD -->
+<div class="view active" id="view-dashboard">
+  <div class="pg-hd">
+    <div><div class="pg-title">Dashboard Operacional</div><div class="pg-sub" id="pgSubDash">ENGEFABRI · carregando...</div></div>
+    <div class="pg-actions">
+      <button class="btn btn-ghost btn-sm" onclick="loadAll()">↻ Atualizar</button>
+      <button class="btn btn-dark btn-sm" onclick="abrirNovaOP()">+ Nova OP</button>
+    </div>
+  </div>
+  <div class="kpi-row kpi-row-6">
+    <div class="kpi-card kc-red"><div class="kpi-label">Urgentes Hoje</div><div class="kpi-val red" id="kUrg">–</div><div class="kpi-meta">prazo ≤ hoje</div></div>
+    <div class="kpi-card kc-orange"><div class="kpi-label">Atrasadas</div><div class="kpi-val orange" id="kAtr">–</div><div class="kpi-meta">prazo vencido</div></div>
+    <div class="kpi-card"><div class="kpi-label">Em Produção</div><div class="kpi-val" id="kProd">–</div><div class="kpi-meta">OPs ativas</div></div>
+    <div class="kpi-card kc-gold"><div class="kpi-label">Pronto Expedição</div><div class="kpi-val gold" id="kExp">–</div><div class="kpi-meta">aguardando carga</div></div>
+    <div class="kpi-card kc-red"><div class="kpi-label">Material Crítico</div><div class="kpi-val red" id="kSup">–</div><div class="kpi-meta">suprimentos</div></div>
+    <div class="kpi-card kc-green"><div class="kpi-label">Concluídas Mês</div><div class="kpi-val green" id="kConc">–</div><div class="kpi-meta">este mês</div></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+    <div class="tbl-wrap"><div class="tbl-head"><span class="tbl-title">🔴 Urgentes e Atrasadas</span></div><div id="dashUrg"><div class="loading"><div class="spinner"></div></div></div></div>
+    <div class="tbl-wrap"><div class="tbl-head"><span class="tbl-title">📦 Pronto Expedição</span></div><div id="dashExp"><div class="loading"><div class="spinner"></div></div></div></div>
+  </div>
+  <div class="tbl-wrap">
+    <div class="tbl-head"><span class="tbl-title">⚙ Produção em Andamento</span><span id="dashProdCount" style="font-size:12px;color:var(--text3);font-family:var(--mono)">–</span></div>
+    <div id="dashProd"><div class="loading"><div class="spinner"></div></div></div>
+  </div>
+  <div class="tbl-wrap">
+    <div class="tbl-head"><span class="tbl-title">⚡ Suprimentos Críticos</span><button class="btn btn-ghost btn-sm" onclick="sv('suprimentos',document.querySelector('[onclick*=suprimentos]'))">Ver todos →</button></div>
+    <div id="dashSup"><div class="loading"><div class="spinner"></div></div></div>
+  </div>
+</div>
+
+<!-- OPs -->
+<div class="view" id="view-ops">
+  <div class="pg-hd">
+    <div><div class="pg-title">Ordens de Produção</div><div class="pg-sub">Cadastro e controle de todas as OPs</div></div>
+    <div class="pg-actions"><button class="btn btn-gold" onclick="abrirNovaOP()">+ Nova OP</button></div>
+  </div>
+  <div class="filter-bar">
+    <input class="s-input" type="text" placeholder="Buscar OP, cliente, produto..." oninput="filtrarOPs()">
+    <select class="f-sel" id="fStatus" onchange="filtrarOPs()">
+      <option value="">Todos os status</option>
+      <option value="aguardando">Aguardando</option><option value="corte">Corte</option>
+      <option value="dobra">Dobra</option><option value="montagem">Montagem</option>
+      <option value="solda">Solda</option><option value="pintura">Pintura</option>
+      <option value="inspecao">Inspeção</option><option value="expedicao">Expedição</option>
+      <option value="montagem_externa">Montagem Externa</option><option value="concluido">Concluído</option>
+    </select>
+    <select class="f-sel" id="fPrior" onchange="filtrarOPs()">
+      <option value="">Todas prioridades</option>
+      <option value="URGENTE">Urgente</option><option value="ALTA">Alta</option><option value="NORMAL">Normal</option>
+    </select>
+  </div>
+  <div class="tbl-wrap"><div id="tblOPs"><div class="loading"><div class="spinner"></div></div></div></div>
+</div>
+
+<!-- KANBAN -->
+<div class="view" id="view-kanban" style="gap:12px">
+  <div class="pg-hd">
+    <div><div class="pg-title">Kanban Industrial</div><div class="pg-sub">Arraste os cartões entre etapas de produção</div></div>
+    <div class="pg-actions">
+      <button class="btn btn-ghost btn-sm" onclick="renderKanban()">↻</button>
+      <button class="btn btn-dark btn-sm" onclick="abrirNovaOP()">+ Nova OP</button>
+    </div>
+  </div>
+  <div class="kanban-wrap" id="kanbanWrap" style="flex:1;min-height:0"><div class="loading"><div class="spinner"></div></div></div>
+</div>
+
+<!-- SUPRIMENTOS -->
+<div class="view" id="view-suprimentos">
+  <div class="pg-hd">
+    <div><div class="pg-title">Suprimentos</div><div class="pg-sub">Solicitações de material · compras · fornecedores · estoque mínimo</div></div>
+    <div class="pg-actions">
+      <button class="btn btn-ghost btn-sm" onclick="sv('fornecedores',null)">Fornecedores</button>
+      <button class="btn btn-gold" onclick="abrirNovaSolicitacao()">+ Solicitação</button>
+    </div>
+  </div>
+  <div class="kpi-row kpi-row-4">
+    <div class="kpi-card kc-red"><div class="kpi-label">Críticos / Atrasados</div><div class="kpi-val red" id="supKCrit">–</div><div class="kpi-meta">compras urgentes</div></div>
+    <div class="kpi-card kc-orange"><div class="kpi-label">Cotando / Comprado</div><div class="kpi-val orange" id="supKComp">–</div><div class="kpi-meta">em andamento</div></div>
+    <div class="kpi-card kc-blue"><div class="kpi-label">Aguardando Entrega</div><div class="kpi-val blue" id="supKAg">–</div><div class="kpi-meta">comprado</div></div>
+    <div class="kpi-card kc-green"><div class="kpi-label">Entregues</div><div class="kpi-val green" id="supKEnt">–</div><div class="kpi-meta">este mês</div></div>
+  </div>
+  <div class="filter-bar">
+    <input class="s-input" type="text" id="supBusca" placeholder="Buscar material, OP, fornecedor..." oninput="filtrarSup()">
+    <select class="f-sel" id="supFStatus" onchange="filtrarSup()">
+      <option value="">Todos status</option>
+      <option value="solicitado">Solicitado</option><option value="cotando">Cotando</option>
+      <option value="comprado">Comprado</option><option value="parcial">Parcial</option>
+      <option value="entregue">Entregue</option><option value="atrasado">Atrasado</option>
+    </select>
+    <select class="f-sel" id="supFUrg" onchange="filtrarSup()">
+      <option value="">Todas urgências</option>
+      <option value="CRITICO">Crítico</option><option value="ALTA">Alta</option><option value="NORMAL">Normal</option>
+    </select>
+  </div>
+  <div class="tbl-wrap"><div id="tblSup"><div class="loading"><div class="spinner"></div></div></div></div>
+</div>
+
+<!-- FORNECEDORES (sub-view via modal) -->
+
+<!-- RASTREABILIDADE -->
+<div class="view" id="view-rastreabilidade">
+  <div class="pg-hd">
+    <div><div class="pg-title">Rastreabilidade</div><div class="pg-sub">Histórico completo por OP</div></div>
+  </div>
+  <div class="filter-bar">
+    <input class="s-input" type="text" id="rastrBusca" placeholder="Número da OP..." style="min-width:260px" onkeyup="if(event.key==='Enter')buscarRastr()">
+    <button class="btn btn-dark" onclick="buscarRastr()">Buscar</button>
+  </div>
+  <div id="rastrResultado"><div class="empty"><div class="empty-icon">◎</div>Digite o número da OP para ver o histórico</div></div>
+</div>
+
+<!-- ALERTAS -->
+<div class="view" id="view-alertas">
+  <div class="pg-hd">
+    <div><div class="pg-title">Alertas Operacionais</div><div class="pg-sub">Gerados automaticamente · produção + suprimentos</div></div>
+    <div class="pg-actions"><button class="btn btn-ghost btn-sm" onclick="gerarAlertas()">↻ Recalcular</button></div>
+  </div>
+  <div class="alert-list" id="listaAlertas"><div class="loading"><div class="spinner"></div></div></div>
+</div>
+
+<!-- TV -->
+<div class="view" id="view-tv">
+  <div class="pg-hd">
+    <div><div class="pg-title">Painel TV</div><div class="pg-sub">Visualização para fábrica e painel operacional</div></div>
+    <div class="pg-actions"><button class="btn btn-dark btn-sm" onclick="document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen()">⛶ Tela Cheia</button></div>
+  </div>
+  <div class="tv-grid" id="tvWrap" style="flex:1;min-height:0"><div class="loading"><div class="spinner"></div></div></div>
+</div>
+
+<!-- LOG -->
+<div class="view" id="view-log">
+  <div class="pg-hd"><div><div class="pg-title">Log de Movimentações</div><div class="pg-sub">Toda alteração registrada automaticamente</div></div></div>
+  <div class="tbl-wrap"><div id="tblLog"><div class="loading"><div class="spinner"></div></div></div></div>
+</div>
+
+</div><!-- layout -->
+
+<!-- MODAL OP -->
+<div class="modal-bg" id="modalOP">
+  <div class="modal">
+    <div class="modal-hd"><div class="modal-title" id="mopTitle">Nova Ordem de Produção</div><button class="modal-close" onclick="closeModal('modalOP')">✕</button></div>
+    <div class="modal-body">
+      <div class="fg-grid">
+        <div class="fg"><label class="fg-label">Número OP</label><input class="fg-input" id="opN" placeholder="OP-2026-001"></div>
+        <div class="fg"><label class="fg-label">Prioridade</label><select class="fg-sel" id="opP"><option value="NORMAL">Normal</option><option value="ALTA">Alta</option><option value="URGENTE">Urgente</option></select></div>
+        <div class="fg fg-full"><label class="fg-label">Cliente</label><input class="fg-input" id="opCl" placeholder="Nome do cliente ou órgão"></div>
+        <div class="fg fg-full"><label class="fg-label">Produto / Objeto</label><input class="fg-input" id="opPr" placeholder="Ex: Reservatório 200.000L · Estrutura Metálica · Caldeiraria"></div>
+        <div class="fg"><label class="fg-label">Categoria</label><select class="fg-sel" id="opCat"><option value="reservatorio">Reservatório</option><option value="estrutura">Estrutura Metálica</option><option value="caldeiraria">Caldeiraria</option><option value="equipamento">Equipamento</option><option value="outro">Outro</option></select></div>
+        <div class="fg"><label class="fg-label">Status Atual</label><select class="fg-sel" id="opSt"><option value="aguardando">Aguardando</option><option value="corte">Corte</option><option value="dobra">Dobra</option><option value="montagem">Montagem</option><option value="solda">Solda</option><option value="pintura">Pintura</option><option value="inspecao">Inspeção</option><option value="expedicao">Expedição</option><option value="montagem_externa">Montagem Externa</option><option value="concluido">Concluído</option></select></div>
+        <div class="fg"><label class="fg-label">Prazo de Entrega</label><input class="fg-input" type="date" id="opPz"></div>
+        <div class="fg"><label class="fg-label">Responsável</label><input class="fg-input" id="opRe" placeholder="Nome do responsável"></div>
+        <div class="fg fg-full"><label class="fg-label">Observações</label><textarea class="fg-ta" id="opOb" placeholder="Detalhes, requisitos especiais, pendências..."></textarea></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal('modalOP')">Cancelar</button><button class="btn btn-gold" onclick="salvarOP()">Salvar OP</button></div>
+  </div>
+</div>
+
+<!-- MODAL DETALHE OP -->
+<div class="modal-bg" id="modalDet">
+  <div class="modal modal-lg">
+    <div class="modal-hd"><div class="modal-title" id="detTitle">–</div><button class="modal-close" onclick="closeModal('modalDet')">✕</button></div>
+    <div class="modal-body" id="detBody"></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('modalDet')">Fechar</button>
+      <button class="btn btn-gold" id="btnAvnDet">Avançar Etapa</button>
+      <button class="btn btn-dark" id="btnEditDet">Editar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL AVANÇAR -->
+<div class="modal-bg" id="modalAv">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-hd"><div class="modal-title">Avançar Etapa</div><button class="modal-close" onclick="closeModal('modalAv')">✕</button></div>
+    <div class="modal-body">
+      <div class="fg-grid">
+        <div class="fg fg-full"><label class="fg-label">Nova Etapa</label><select class="fg-sel" id="avSt"><option value="corte">Corte</option><option value="dobra">Dobra</option><option value="montagem">Montagem</option><option value="solda">Solda</option><option value="pintura">Pintura</option><option value="inspecao">Inspeção</option><option value="expedicao">Expedição</option><option value="montagem_externa">Montagem Externa</option><option value="concluido">Concluído</option></select></div>
+        <div class="fg"><label class="fg-label">Responsável</label><input class="fg-input" id="avRe" placeholder="Nome do responsável"></div>
+        <div class="fg"><label class="fg-label">Data</label><input class="fg-input" type="date" id="avDt"></div>
+        <div class="fg fg-full"><label class="fg-label">Observação / O que foi feito</label><textarea class="fg-ta" id="avOb" placeholder="Descreva o que foi realizado, problemas encontrados, próximos passos..." style="min-height:90px"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal('modalAv')">Cancelar</button><button class="btn btn-gold" onclick="confirmarAvanço()">Confirmar</button></div>
+  </div>
+</div>
+
+<!-- MODAL NOVA SOLICITAÇÃO SUPRIMENTO -->
+<div class="modal-bg" id="modalSup">
+  <div class="modal">
+    <div class="modal-hd"><div class="modal-title" id="mSupTitle">Nova Solicitação de Material</div><button class="modal-close" onclick="closeModal('modalSup')">✕</button></div>
+    <div class="modal-body">
+      <div class="fg-grid">
+        <div class="fg fg-full"><label class="fg-label">OP Vinculada</label><select class="fg-sel" id="supOP"><option value="">Sem vínculo</option></select></div>
+        <div class="fg fg-full"><label class="fg-label">Material / Item</label><input class="fg-input" id="supMat" placeholder="Ex: Tinta epóxi RAL 7021 · Chapa 6mm · Parafuso M12"></div>
+        <div class="fg fg-full"><label class="fg-label">Descrição / Especificação</label><textarea class="fg-ta" id="supDesc" placeholder="Especificações técnicas, normas, observações..."></textarea></div>
+        <div class="fg"><label class="fg-label">Quantidade</label><input class="fg-input" id="supQtd" placeholder="Ex: 20 litros · 50 kg"></div>
+        <div class="fg"><label class="fg-label">Urgência</label><select class="fg-sel" id="supUrg"><option value="NORMAL">Normal</option><option value="ALTA">Alta</option><option value="CRITICO">Crítico</option></select></div>
+        <div class="fg"><label class="fg-label">Prazo Necessário</label><input class="fg-input" type="date" id="supPz"></div>
+        <div class="fg"><label class="fg-label">Responsável Solicitante</label><input class="fg-input" id="supResp" placeholder="Nome do solicitante"></div>
+        <div class="fg fg-full"><label class="fg-label">Fornecedor Preferencial</label><input class="fg-input" id="supForn" placeholder="Nome do fornecedor (opcional)"></div>
+        <div class="fg fg-full"><label class="fg-label">Observações</label><textarea class="fg-ta" id="supObs" placeholder="Informações adicionais..."></textarea></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal('modalSup')">Cancelar</button><button class="btn btn-gold" onclick="salvarSup()">Salvar Solicitação</button></div>
+  </div>
+</div>
+
+<!-- MODAL ATUALIZAR STATUS SUPRIMENTO -->
+<div class="modal-bg" id="modalSupSt">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-hd"><div class="modal-title">Atualizar Suprimento</div><button class="modal-close" onclick="closeModal('modalSupSt')">✕</button></div>
+    <div class="modal-body">
+      <div class="fg-grid">
+        <div class="fg fg-full"><label class="fg-label">Novo Status</label><select class="fg-sel" id="supStNovo"><option value="solicitado">Solicitado</option><option value="cotando">Cotando</option><option value="comprado">Comprado</option><option value="parcial">Parcial</option><option value="entregue">Entregue</option><option value="atrasado">Atrasado</option><option value="cancelado">Cancelado</option></select></div>
+        <div class="fg"><label class="fg-label">Fornecedor</label><input class="fg-input" id="supStForn" placeholder="Nome do fornecedor"></div>
+        <div class="fg"><label class="fg-label">Previsão Entrega</label><input class="fg-input" type="date" id="supStPrev"></div>
+        <div class="fg fg-full"><label class="fg-label">Observação</label><textarea class="fg-ta" id="supStObs" placeholder="Nº pedido, NF, observação..." style="min-height:70px"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal('modalSupSt')">Cancelar</button><button class="btn btn-gold" onclick="confirmarSupSt()">Atualizar</button></div>
+  </div>
+</div>
+
+<div id="toastWrap"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// ENGEFABRI v2 — COM SUPRIMENTOS
+// ══════════════════════════════════════════════════════════════
+const SB_URL = 'https://ncgehcjugydjjbraclha.supabase.co';
+const SB_KEY = 'sb_publishable_2GfOySfDg-Zt3oU4qMgvOw_KyY6_DjP';
+
+function sbFetch(table, opts) {
+  opts = opts || {};
+  var url = SB_URL + '/rest/v1/' + table;
+  var params = new URLSearchParams();
+  if (opts.select) params.set('select', opts.select);
+  if (opts.order) params.set('order', opts.order);
+  if (opts.limit) params.set('limit', opts.limit);
+  if (opts.filters) opts.filters.forEach(function(f) { params.set(f[0], f[1]); });
+  var qs = params.toString();
+  if (qs) url += '?' + qs;
+  var method = opts.method || 'GET';
+  var headers = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' };
+  if (method !== 'GET') headers['Prefer'] = 'return=representation';
+  return fetch(url, { method: method, headers: headers, body: opts.body ? JSON.stringify(opts.body) : undefined })
+    .then(function(r) { return r.json(); })
+    .then(function(d) { return { data: Array.isArray(d) ? d : (d && d.id ? [d] : []), error: (d && d.code) ? d : null }; })
+    .catch(function(e) {
+      console.warn('[ENGEFABRI] Fetch error:', table, e.message);
+      return { data: [], error: { message: e.message } };
+    });
+}
+
+// ── STATE ──────────────────────────────────────────────────
+var allOPs = [], allLogs = [], allSups = [];
+var opEditando = null, opAvancando = null, supEditando = null;
+
+// ── UTILS ─────────────────────────────────────────────────
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function toast(msg, type) {
+  var el = document.createElement('div');
+  var bg = type==='error'?'#DC2626':type==='warn'?'#D97706':'#1C1917';
+  el.style.cssText = 'background:'+bg+';color:#fff;padding:9px 16px;border-radius:8px;font-size:12.5px;font-family:DM Sans,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,.18);max-width:300px';
+  el.textContent = msg;
+  document.getElementById('toastWrap').appendChild(el);
+  setTimeout(function() { el.remove(); }, 3000);
+}
+
+function fmtD(d) {
+  if (!d) return '–';
+  var p = String(d).split('T')[0].split('-');
+  return p[2]+'/'+p[1]+'/'+p[0];
+}
+
+function diasP(prazo) {
+  if (!prazo) return null;
+  var h = new Date(); h.setHours(0,0,0,0);
+  var p = new Date(String(prazo).split('T')[0]+'T12:00:00'); p.setHours(0,0,0,0);
+  return Math.round((p-h)/86400000);
+}
+
+function stBadge(s) {
+  var m = {
+    aguardando:['s-aguardando','Aguardando'],corte:['s-corte','Corte'],dobra:['s-dobra','Dobra'],
+    montagem:['s-montagem','Montagem'],solda:['s-solda','Solda'],pintura:['s-pintura','Pintura'],
+    inspecao:['s-inspecao','Inspeção'],expedicao:['s-expedicao','Expedição'],
+    montagem_externa:['s-montagem-ext','Mont.Externa'],concluido:['s-concluido','Concluído']
+  };
+  var i = m[s]||['s-aguardando',esc(s)];
+  return '<span class="badge '+i[0]+'">'+i[1]+'</span>';
+}
+
+function supStBadge(s) {
+  var m = {
+    solicitado:'sup-solicitado',cotando:'sup-cotando',comprado:'sup-comprado',
+    parcial:'sup-parcial',entregue:'sup-entregue',atrasado:'sup-atrasado',cancelado:'sup-cancelado'
+  };
+  var labels = {solicitado:'Solicitado',cotando:'Cotando',comprado:'Comprado',parcial:'Parcial',entregue:'Entregue',atrasado:'Atrasado',cancelado:'Cancelado'};
+  return '<span class="badge '+(m[s]||'s-aguardando')+'">'+esc(labels[s]||s)+'</span>';
+}
+
+function urgBadge(u) {
+  var m = {CRITICO:'urg-critico',ALTA:'urg-alta',NORMAL:'urg-normal'};
+  return '<span class="badge '+(m[u]||'urg-normal')+'">'+esc(u||'NORMAL')+'</span>';
+}
+
+function prazoBadge(prazo, short) {
+  if (!prazo) return '<span style="color:var(--text3);font-size:11.5px;font-family:var(--mono)">–</span>';
+  var d = diasP(prazo);
+  var cls = d < 0 ? 'late' : d <= 3 ? 'warn' : 'ok';
+  var lbl = d < 0 ? (short?'-'+Math.abs(d)+'d':'ATRASADO '+Math.abs(d)+'d') : d === 0 ? 'HOJE' : fmtD(prazo);
+  return '<span class="kbc-prazo '+cls+'" style="font-size:11px;font-family:var(--mono)">'+esc(lbl)+'</span>';
+}
+
+function sv(name, el) {
+  document.querySelectorAll('.view').forEach(function(v){v.classList.remove('active')});
+  document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active')});
+  var v = document.getElementById('view-'+name);
+  if (v) v.classList.add('active');
+  if (el) el.classList.add('active');
+  if (name==='kanban') renderKanban();
+  if (name==='alertas') gerarAlertas();
+  if (name==='tv') renderTV();
+  if (name==='log') renderLog();
+  if (name==='suprimentos') { renderSup(allSups); renderSupKpis(); }
+}
+
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ── LOAD ──────────────────────────────────────────────────
+async function safeQ(fn) {
+  return new Promise(async function(res) {
+    var t = setTimeout(function(){res({data:[],error:{message:'timeout'}})},10000);
+    try { var r = await fn(); clearTimeout(t); res(r); } catch(e){clearTimeout(t);res({data:[],error:e});}
+  });
+}
+
+async function loadAll() {
+  var r1 = await safeQ(function(){return sbFetch('ef_ops',{select:'*',order:'created_at.desc'});});
+  if (!r1.error) allOPs = r1.data;
+  var r2 = await safeQ(function(){return sbFetch('ef_logs',{select:'*',order:'created_at.desc',limit:200});});
+  if (!r2.error) allLogs = r2.data;
+  var r3 = await safeQ(function(){return sbFetch('ef_sup',{select:'*',order:'created_at.desc'});});
+  if (!r3.error) allSups = r3.data;
+  renderDash();
+  renderTblOPs(allOPs);
+  gerarAlertas();
+  updateRelogio();
+  document.getElementById('pgSubDash').textContent = 'ENGEFABRI · atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+}
+
+// ── DASHBOARD ─────────────────────────────────────────────
+function renderDash() {
+  var hoje = new Date(); hoje.setHours(0,0,0,0);
+  var mes = hoje.getMonth()+'-'+hoje.getFullYear();
+  var urgentes = (allOPs||[]).filter(function(o){var d=diasP(o.prazo);return d!==null&&d<=0&&o.status!=='concluido';});
+  var atrasadas = (allOPs||[]).filter(function(o){var d=diasP(o.prazo);return d!==null&&d<0&&o.status!=='concluido';});
+  var emProd = (allOPs||[]).filter(function(o){return !['concluido','aguardando'].includes(o.status);});
+  var exp = (allOPs||[]).filter(function(o){return o.status==='expedicao';});
+  var conc = (allOPs||[]).filter(function(o){
+    if(o.status!=='concluido'||!o.updated_at)return false;
+    var d=new Date(o.updated_at);return(d.getMonth()+'-'+d.getFullYear())===mes;
+  });
+  var supCrit = (allSups||[]).filter(function(s){return ['solicitado','cotando','atrasado'].includes(s.status)&&s.urgencia==='CRITICO';});
+
+  document.getElementById('kUrg').textContent=urgentes.length;
+  document.getElementById('kAtr').textContent=atrasadas.length;
+  document.getElementById('kProd').textContent=emProd.length;
+  document.getElementById('kExp').textContent=exp.length;
+  document.getElementById('kSup').textContent=supCrit.length;
+  document.getElementById('kConc').textContent=conc.length;
+  document.getElementById('badgeAlertas').textContent=urgentes.length+atrasadas.length+supCrit.length;
+
+  // Urgentes
+  var elU=document.getElementById('dashUrg');
+  var urg2=(allOPs||[]).filter(function(o){var d=diasP(o.prazo);return d!==null&&d<=3&&o.status!=='concluido';}).sort(function(a,b){return diasP(a.prazo)-diasP(b.prazo);}).slice(0,7);
+  elU.innerHTML=!urg2.length?'<div class="empty">Nenhuma OP urgente</div>':
+    '<table><thead><tr><th>OP</th><th>Cliente</th><th>Status</th><th>Prazo</th></tr></thead><tbody>'+
+    urg2.map(function(o){return'<tr onclick="verDet(\''+o.id+'\')"><td class="t-mono t-bold">'+esc(o.numero)+'</td><td class="t-clip">'+esc(o.cliente)+'</td><td>'+stBadge(o.status)+'</td><td>'+prazoBadge(o.prazo)+'</td></tr>';}).join('')+'</tbody></table>';
+
+  // Expedição
+  var elE=document.getElementById('dashExp');
+  elE.innerHTML=!exp.length?'<div class="empty">Nenhuma OP em expedição</div>':
+    '<table><thead><tr><th>OP</th><th>Cliente</th><th>Produto</th></tr></thead><tbody>'+
+    exp.map(function(o){return'<tr onclick="verDet(\''+o.id+'\')"><td class="t-mono t-bold">'+esc(o.numero)+'</td><td>'+esc(o.cliente)+'</td><td class="t-clip">'+esc(o.produto)+'</td></tr>';}).join('')+'</tbody></table>';
+
+  // Produção
+  var elP=document.getElementById('dashProd');
+  document.getElementById('dashProdCount').textContent=emProd.length+' OPs ativas';
+  elP.innerHTML=!emProd.length?'<div class="empty">Nenhuma OP em produção</div>':
+    '<table><thead><tr><th>OP</th><th>Cliente</th><th>Produto</th><th>Status</th><th>Prioridade</th><th>Prazo</th></tr></thead><tbody>'+
+    emProd.slice(0,12).map(function(o){
+      var pc=o.prioridade==='URGENTE'?'urgente':o.prioridade==='ALTA'?'alta':'normal';
+      return'<tr onclick="verDet(\''+o.id+'\')"><td class="t-mono t-bold">'+esc(o.numero)+'</td><td class="t-clip">'+esc(o.cliente)+'</td><td class="t-clip">'+esc(o.produto)+'</td><td>'+stBadge(o.status)+'</td><td><span class="kbc-p '+pc+'">'+esc(o.prioridade||'NORMAL')+'</span></td><td>'+prazoBadge(o.prazo)+'</td></tr>';
+    }).join('')+'</tbody></table>';
+
+  // Suprimentos críticos no dashboard
+  var elS=document.getElementById('dashSup');
+  var supAlert=(allSups||[]).filter(function(s){return ['solicitado','cotando','atrasado'].includes(s.status);}).slice(0,6);
+  elS.innerHTML=!supAlert.length?'<div class="empty">Nenhum suprimento crítico</div>':
+    '<table><thead><tr><th>Material</th><th>OP</th><th>Urgência</th><th>Status</th><th>Prazo</th></tr></thead><tbody>'+
+    supAlert.map(function(s){
+      var op=allOPs.find(function(o){return o.id===s.op_id;});
+      return'<tr onclick="sv(\'suprimentos\',document.querySelector(\'[onclick*=suprimentos]\'))">' +
+        '<td class="t-bold t-clip">'+esc(s.material)+'</td>' +
+        '<td class="t-mono" style="font-size:11px">'+esc(op?op.numero:'–')+'</td>' +
+        '<td>'+urgBadge(s.urgencia)+'</td>' +
+        '<td>'+supStBadge(s.status)+'</td>' +
+        '<td>'+prazoBadge(s.prazo_necessario,true)+'</td></tr>';
+    }).join('')+'</tbody></table>';
+}
+
+// ── TABELA OPs ────────────────────────────────────────────
+function renderTblOPs(ops) {
+  var el=document.getElementById('tblOPs');
+  if(!ops.length){el.innerHTML='<div class="empty"><div class="empty-icon">◧</div>Nenhuma OP cadastrada</div>';return;}
+  el.innerHTML='<table><thead><tr><th>OP</th><th>Cliente</th><th>Produto</th><th>Cat.</th><th>Status</th><th>Prior.</th><th>Prazo</th><th>Resp.</th><th>Ações</th></tr></thead><tbody>'+
+    ops.map(function(o){
+      var pc=o.prioridade==='URGENTE'?'urgente':o.prioridade==='ALTA'?'alta':'normal';
+      return'<tr><td class="t-mono t-bold" onclick="verDet(\''+o.id+'\')">'+esc(o.numero)+'</td><td class="t-clip">'+esc(o.cliente)+'</td><td class="t-clip">'+esc(o.produto)+'</td><td class="t-sm">'+esc(o.categoria||'–')+'</td><td>'+stBadge(o.status)+'</td><td><span class="kbc-p '+pc+'">'+esc(o.prioridade||'N')+'</span></td><td>'+prazoBadge(o.prazo,true)+'</td><td class="t-sm">'+esc(o.responsavel||'–')+'</td><td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="verDet(\''+o.id+'\')">Ver</button> <button class="btn btn-sm btn-gold" onclick="abrirAv(\''+o.id+'\')">→</button></td></tr>';
+    }).join('')+'</tbody></table>';
+}
+
+function filtrarOPs() {
+  var q=(document.querySelector('#view-ops .s-input')||{value:''}).value.toLowerCase();
+  var st=document.getElementById('fStatus').value;
+  var pr=document.getElementById('fPrior').value;
+  renderTblOPs((allOPs||[]).filter(function(o){
+    return(!q||[o.numero,o.cliente,o.produto,o.responsavel].some(function(f){return(f||'').toLowerCase().includes(q);}))&&
+      (!st||o.status===st)&&(!pr||o.prioridade===pr);
+  }));
+}
+
+// ── KANBAN ────────────────────────────────────────────────
+var etapas=[
+  {k:'aguardando',l:'Aguardando',c:'#6B7280'},{k:'corte',l:'Corte',c:'#0369A1'},
+  {k:'dobra',l:'Dobra',c:'#7C3AED'},{k:'montagem',l:'Montagem',c:'#92400E'},
+  {k:'solda',l:'Solda',c:'#DC2626'},{k:'pintura',l:'Pintura',c:'#2563EB'},
+  {k:'inspecao',l:'Inspeção',c:'#065F46'},{k:'expedicao',l:'Expedição',c:'#D97706'},
+  {k:'montagem_externa',l:'Mont.Externa',c:'#7C3AED'},{k:'concluido',l:'Concluído',c:'#16A34A'}
+];
+var dragId=null;
+
+function renderKanban() {
+  var el=document.getElementById('kanbanWrap');
+  el.innerHTML='';
+  etapas.forEach(function(et) {
+    var ops=(allOPs||[]).filter(function(o){return o.status===et.k;});
+    var col=document.createElement('div');
+    col.className='kb-col';col.dataset.et=et.k;
+    col.addEventListener('dragover',function(e){e.preventDefault();col.classList.add('drag-over');});
+    col.addEventListener('dragleave',function(){col.classList.remove('drag-over');});
+    col.addEventListener('drop',function(e){e.preventDefault();col.classList.remove('drag-over');if(dragId)moverOP(dragId,et.k);});
+    col.innerHTML='<div class="kb-col-hd" style="border-top:3px solid '+et.c+'">'+
+      '<span class="kb-col-title" style="color:'+et.c+'">'+esc(et.l)+'</span>'+
+      '<span class="kb-count">'+ops.length+'</span></div>'+
+      '<div class="kb-cards">'+
+      ops.map(function(o){
+        var d=diasP(o.prazo);
+        var pc=o.prioridade==='URGENTE'?'urgente':o.prioridade==='ALTA'?'alta':'normal';
+        var pCls=d!==null&&d<0?'late':d!==null&&d<=3?'warn':'ok';
+        var pTxt=d===null?'':d<0?'ATRAS.'+Math.abs(d)+'d':d===0?'HOJE':fmtD(o.prazo);
+        // Material pendente indicator
+        var matPend=(allSups||[]).filter(function(s){return s.op_id===o.id&&!['entregue','cancelado'].includes(s.status);}).length;
+        return'<div class="kb-card" draggable="true" data-id="'+o.id+'" onclick="verDet(\''+o.id+'\')" ondragstart="dragId=\''+o.id+'\';this.classList.add(\'dragging\')" ondragend="this.classList.remove(\'dragging\')">'+
+          '<div class="kbc-op">'+esc(o.numero)+(matPend?' · <span style="color:var(--orange);font-size:9px">📦'+matPend+' mat.</span>':'')+'</div>'+
+          '<div class="kbc-title">'+esc(o.produto)+'</div>'+
+          '<div class="kbc-cliente">'+esc(o.cliente)+'</div>'+
+          '<div class="kbc-foot"><span class="kbc-prazo '+pCls+'">'+esc(pTxt)+'</span><span class="kbc-p '+pc+'">'+esc(o.prioridade||'N')+'</span></div></div>';
+      }).join('')+
+      (ops.length===0?'<div style="padding:14px;text-align:center;color:var(--text4);font-size:11px;font-family:var(--mono)">Vazio</div>':'')+
+      '</div>';
+    el.appendChild(col);
+  });
+}
+
+async function moverOP(id, novoSt) {
+  var op=allOPs.find(function(o){return o.id===id;});
+  if(!op||op.status===novoSt)return;
+  var ant=op.status; op.status=novoSt; renderKanban();
+  var r=await sbFetch('ef_ops',{method:'PATCH',filters:[['id','eq.'+id]],body:{status:novoSt}});
+  if(r.error){op.status=ant;renderKanban();toast('Erro ao mover OP','error');return;}
+  await regLog(id,op.numero,'STATUS',ant+' → '+novoSt,'Sistema','');
+  renderDash(); toast('→ '+novoSt);
+}
+
+// ── NOVA/EDITAR OP ─────────────────────────────────────────
+function abrirNovaOP() {
+  opEditando=null;
+  document.getElementById('mopTitle').textContent='Nova Ordem de Produção';
+  ['opN','opCl','opPr','opRe','opOb'].forEach(function(id){document.getElementById(id).value='';});
+  document.getElementById('opSt').value='aguardando';
+  document.getElementById('opP').value='NORMAL';
+  document.getElementById('opCat').value='reservatorio';
+  document.getElementById('opPz').value='';
+  document.getElementById('modalOP').classList.add('open');
+}
+
+async function salvarOP() {
+  var n=document.getElementById('opN').value.trim();
+  var cl=document.getElementById('opCl').value.trim();
+  var pr=document.getElementById('opPr').value.trim();
+  if(!n||!cl||!pr){toast('Número, cliente e produto obrigatórios','error');return;}
+  var payload={numero:n,cliente:cl,produto:pr,categoria:document.getElementById('opCat').value,status:document.getElementById('opSt').value,prioridade:document.getElementById('opP').value,prazo:document.getElementById('opPz').value||null,responsavel:document.getElementById('opRe').value.trim(),obs:document.getElementById('opOb').value.trim()};
+  if(opEditando) {
+    var r=await sbFetch('ef_ops',{method:'PATCH',filters:[['id','eq.'+opEditando]],body:payload});
+    if(r.error){toast('Erro: '+r.error.message,'error');return;}
+    var idx=allOPs.findIndex(function(o){return o.id===opEditando;});
+    if(idx>=0)allOPs[idx]=Object.assign(allOPs[idx],payload);
+    await regLog(opEditando,n,'EDIÇÃO','OP editada',payload.responsavel,'');
+    toast('OP atualizada');
+  } else {
+    var r=await sbFetch('ef_ops',{method:'POST',body:[payload]});
+    if(r.error){toast('Erro: '+r.error.message,'error');return;}
+    if(r.data&&r.data[0]){allOPs.unshift(r.data[0]);await regLog(r.data[0].id,n,'CRIAÇÃO','OP criada',payload.responsavel,'');}
+    toast('OP criada');
+  }
+  closeModal('modalOP');renderDash();renderTblOPs(allOPs);
+  if(document.getElementById('view-kanban').classList.contains('active'))renderKanban();
+  populateOpSelect();
+}
+
+// ── DETALHE OP ────────────────────────────────────────────
+function verDet(id) {
+  var op=allOPs.find(function(o){return o.id===id;});
+  if(!op)return;
+  document.getElementById('detTitle').textContent=op.numero+' · '+op.produto;
+  var logs=(allLogs||[]).filter(function(l){return l.op_id===id;});
+  var sups=(allSups||[]).filter(function(s){return s.op_id===id;});
+  var d=diasP(op.prazo);
+  var pCls=d!==null&&d<0?'color:var(--red);font-weight:600':d!==null&&d<=3?'color:var(--orange)':'';
+  var pTxt=d===null?'–':d<0?'ATRASADO '+Math.abs(d)+' dias':d===0?'HOJE':fmtD(op.prazo);
+  document.getElementById('detBody').innerHTML=
+    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px">'+
+      '<div><div class="kpi-label">STATUS</div>'+stBadge(op.status)+'</div>'+
+      '<div><div class="kpi-label">PRAZO</div><div style="font-size:13px;'+pCls+'">'+esc(pTxt)+'</div></div>'+
+      '<div><div class="kpi-label">PRIORIDADE</div><div style="font-size:13px">'+esc(op.prioridade||'NORMAL')+'</div></div>'+
+      '<div><div class="kpi-label">CLIENTE</div><div style="font-weight:500;font-size:13px">'+esc(op.cliente)+'</div></div>'+
+      '<div><div class="kpi-label">RESPONSÁVEL</div><div style="font-size:13px">'+esc(op.responsavel||'–')+'</div></div>'+
+      '<div><div class="kpi-label">CATEGORIA</div><div style="font-size:13px">'+esc(op.categoria||'–')+'</div></div>'+
+    '</div>'+
+    (op.obs?'<div style="background:var(--bg2);border-radius:var(--r);padding:10px 14px;margin-bottom:16px;font-size:12.5px;color:var(--text2)">'+esc(op.obs)+'</div>':'')+
+    (sups.length?'<div style="font-size:11px;font-weight:700;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Suprimentos Vinculados ('+sups.length+')</div>'+
+      '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px"><thead><tr><th style="text-align:left;padding:5px 8px;background:var(--bg2);border-bottom:1px solid var(--border);font-family:var(--mono);font-size:9.5px;text-transform:uppercase">Material</th><th style="text-align:left;padding:5px 8px;background:var(--bg2);border-bottom:1px solid var(--border);font-family:var(--mono);font-size:9.5px;text-transform:uppercase">Qtd</th><th style="text-align:left;padding:5px 8px;background:var(--bg2);border-bottom:1px solid var(--border);font-family:var(--mono);font-size:9.5px;text-transform:uppercase">Status</th><th style="text-align:left;padding:5px 8px;background:var(--bg2);border-bottom:1px solid var(--border);font-family:var(--mono);font-size:9.5px;text-transform:uppercase">Urgência</th></tr></thead><tbody>'+
+      sups.map(function(s){return'<tr><td style="padding:5px 8px;border-bottom:1px solid var(--bg2);font-weight:500">'+esc(s.material)+'</td><td style="padding:5px 8px;border-bottom:1px solid var(--bg2);font-family:var(--mono);font-size:11px">'+esc(s.quantidade||'–')+'</td><td style="padding:5px 8px;border-bottom:1px solid var(--bg2)">'+supStBadge(s.status)+'</td><td style="padding:5px 8px;border-bottom:1px solid var(--bg2)">'+urgBadge(s.urgencia)+'</td></tr>';}).join('')+
+      '</tbody></table>':'') +
+    '<div style="font-size:11px;font-weight:700;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Histórico ('+logs.length+')</div>'+
+    '<div class="rastr-wrap">'+
+    (logs.length?logs.slice(0,10).map(function(l){return'<div class="rastr-item"><div class="rastr-dot done">✓</div><div><div class="rastr-etapa">'+esc(l.tipo)+': '+esc(l.descricao)+'</div><div class="rastr-meta">'+esc(l.responsavel||'–')+' · '+fmtD(l.created_at)+'</div>'+(l.obs?'<div class="rastr-obs">'+esc(l.obs)+'</div>':'')+'</div></div>';}).join(''):'<div style="color:var(--text3);font-size:12px;padding:8px 0">Sem movimentações</div>')+
+    '</div>';
+  document.getElementById('btnAvnDet').onclick=function(){closeModal('modalDet');abrirAv(id);};
+  document.getElementById('btnEditDet').onclick=function(){closeModal('modalDet');editarOP(id);};
+  document.getElementById('modalDet').classList.add('open');
+}
+
+function editarOP(id) {
+  var o=allOPs.find(function(x){return x.id===id;});
+  if(!o)return;
+  opEditando=id;
+  document.getElementById('mopTitle').textContent='Editar OP · '+o.numero;
+  document.getElementById('opN').value=o.numero||'';document.getElementById('opCl').value=o.cliente||'';
+  document.getElementById('opPr').value=o.produto||'';document.getElementById('opCat').value=o.categoria||'reservatorio';
+  document.getElementById('opSt').value=o.status||'aguardando';document.getElementById('opP').value=o.prioridade||'NORMAL';
+  document.getElementById('opPz').value=o.prazo?o.prazo.split('T')[0]:'';
+  document.getElementById('opRe').value=o.responsavel||'';document.getElementById('opOb').value=o.obs||'';
+  document.getElementById('modalOP').classList.add('open');
+}
+
+// ── AVANÇAR ETAPA ─────────────────────────────────────────
+function abrirAv(id) {
+  var o=allOPs.find(function(x){return x.id===id;});
+  if(!o)return;
+  opAvancando=id;
+  document.getElementById('avOb').value='';document.getElementById('avRe').value=o.responsavel||'';
+  document.getElementById('avDt').value=new Date().toISOString().split('T')[0];
+  var ord=['aguardando','corte','dobra','montagem','solda','pintura','inspecao','expedicao','montagem_externa','concluido'];
+  var idx=ord.indexOf(o.status);
+  document.getElementById('avSt').value=idx<ord.length-1?ord[idx+1]:'concluido';
+  document.getElementById('modalAv').classList.add('open');
+}
+
+async function confirmarAvanço() {
+  if(!opAvancando)return;
+  var o=allOPs.find(function(x){return x.id===opAvancando;});
+  if(!o)return;
+  var novoSt=document.getElementById('avSt').value;
+  var obs=document.getElementById('avOb').value.trim();
+  var resp=document.getElementById('avRe').value.trim()||o.responsavel||'Sistema';
+  var ant=o.status;
+  var r=await sbFetch('ef_ops',{method:'PATCH',filters:[['id','eq.'+opAvancando]],body:{status:novoSt}});
+  if(r.error){toast('Erro: '+r.error.message,'error');return;}
+  o.status=novoSt;
+  await regLog(opAvancando,o.numero,'AVANÇO',ant+' → '+novoSt,resp,obs);
+  closeModal('modalAv');renderDash();renderTblOPs(allOPs);
+  if(document.getElementById('view-kanban').classList.contains('active'))renderKanban();
+  toast('→ '+novoSt);
+}
+
+// ── LOG ───────────────────────────────────────────────────
+async function regLog(opId,numero,tipo,desc,resp,obs) {
+  try{
+    var r=await sbFetch('ef_logs',{method:'POST',body:[{op_id:opId,op_numero:numero,tipo:tipo,descricao:desc,responsavel:resp,obs:obs}]});
+    if(!r.error&&r.data&&r.data[0])allLogs.unshift(r.data[0]);
+  }catch(e){console.warn('Log:',e.message);}
+}
+
+function renderLog() {
+  var el=document.getElementById('tblLog');
+  if(!allLogs.length){el.innerHTML='<div class="empty"><div class="empty-icon">≡</div>Nenhuma movimentação</div>';return;}
+  el.innerHTML='<table><thead><tr><th>Data</th><th>OP</th><th>Tipo</th><th>Descrição</th><th>Responsável</th><th>Obs</th></tr></thead><tbody>'+
+    (allLogs||[]).slice(0,60).map(function(l){
+      return'<tr><td class="t-mono" style="font-size:11px;white-space:nowrap">'+fmtD(l.created_at)+'</td>'+
+        '<td class="t-mono t-bold">'+esc(l.op_numero||'–')+'</td>'+
+        '<td><span class="badge s-inspecao" style="font-size:9.5px">'+esc(l.tipo||'–')+'</span></td>'+
+        '<td style="font-size:12.5px">'+esc(l.descricao||'–')+'</td>'+
+        '<td class="t-sm">'+esc(l.responsavel||'–')+'</td>'+
+        '<td class="t-sm t-clip">'+esc(l.obs||'–')+'</td></tr>';
+    }).join('')+'</tbody></table>';
+}
+
+// ── RASTREABILIDADE ──────────────────────────────────────
+function buscarRastr() {
+  var q=(document.getElementById('rastrBusca').value||'').trim();
+  if(!q){toast('Digite o número da OP','error');return;}
+  var el=document.getElementById('rastrResultado');
+  var op=allOPs.find(function(o){return(o.numero||'').toLowerCase().includes(q.toLowerCase());});
+  if(!op){el.innerHTML='<div class="empty"><div class="empty-icon">◎</div>OP não encontrada: '+esc(q)+'</div>';return;}
+  var logs=(allLogs||[]).filter(function(l){return l.op_id===op.id;});
+  var sups=(allSups||[]).filter(function(s){return s.op_id===op.id;});
+  var ord=['aguardando','corte','dobra','montagem','solda','pintura','inspecao','expedicao','montagem_externa','concluido'];
+  el.innerHTML=
+    '<div class="tbl-wrap" style="margin-bottom:14px"><div class="tbl-head"><span class="tbl-title">'+esc(op.numero)+' · '+esc(op.produto)+'</span>'+stBadge(op.status)+'</div>'+
+    '<div style="padding:14px 16px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px">'+
+      '<div><div class="kpi-label">Cliente</div><div style="font-weight:500;font-size:13px">'+esc(op.cliente)+'</div></div>'+
+      '<div><div class="kpi-label">Prazo</div><div style="font-size:13px">'+prazoBadge(op.prazo)+'</div></div>'+
+      '<div><div class="kpi-label">Responsável</div><div style="font-size:13px">'+esc(op.responsavel||'–')+'</div></div>'+
+      '<div><div class="kpi-label">Prioridade</div><div style="font-size:13px">'+esc(op.prioridade||'NORMAL')+'</div></div>'+
+    '</div></div>'+
+    '<div class="tbl-wrap" style="margin-bottom:14px"><div class="tbl-head"><span class="tbl-title">Fluxo de Etapas</span></div>'+
+    '<div style="padding:14px 16px;display:flex;gap:5px;flex-wrap:wrap;align-items:center">'+
+    ord.map(function(e){
+      var done=ord.indexOf(e)<=ord.indexOf(op.status);
+      var active=e===op.status;
+      var bg=active?'var(--ink)':done?'var(--green)':'var(--bg3)';
+      var clr=active||done?'#fff':'var(--text3)';
+      return'<span style="padding:4px 11px;border-radius:20px;font-size:10px;font-family:var(--mono);font-weight:600;background:'+bg+';color:'+clr+'">'+e.toUpperCase().replace('_',' ')+'</span>'+(e!=='concluido'?'<span style="color:var(--text3);font-size:12px">›</span>':'');
+    }).join('')+
+    '</div></div>'+
+    (sups.length?'<div class="tbl-wrap" style="margin-bottom:14px"><div class="tbl-head"><span class="tbl-title">Suprimentos ('+sups.length+')</span></div>'+
+    '<table><thead><tr><th>Material</th><th>Qtd</th><th>Status</th><th>Urgência</th><th>Fornecedor</th></tr></thead><tbody>'+
+    sups.map(function(s){return'<tr><td class="t-bold">'+esc(s.material)+'</td><td class="t-mono">'+esc(s.quantidade||'–')+'</td><td>'+supStBadge(s.status)+'</td><td>'+urgBadge(s.urgencia)+'</td><td class="t-sm">'+esc(s.fornecedor||'–')+'</td></tr>';}).join('')+
+    '</tbody></table></div>':'')+
+    '<div class="tbl-wrap"><div class="tbl-head"><span class="tbl-title">Histórico Completo ('+logs.length+')</span></div>'+
+    '<div style="padding:12px 16px"><div class="rastr-wrap">'+
+    (logs.length?logs.map(function(l){return'<div class="rastr-item"><div class="rastr-dot done">✓</div><div><div class="rastr-etapa">'+esc(l.tipo)+': '+esc(l.descricao)+'</div><div class="rastr-meta">'+esc(l.responsavel||'–')+' · '+fmtD(l.created_at)+'</div>'+(l.obs?'<div class="rastr-obs">'+esc(l.obs)+'</div>':'')+'</div></div>';}).join(''):'<div style="color:var(--text3);font-size:12px;padding:8px 0">Sem movimentações</div>')+
+    '</div></div></div>';
+}
+
+// ── ALERTAS ───────────────────────────────────────────────
+function gerarAlertas() {
+  var el=document.getElementById('listaAlertas');
+  var items=[];
+  allOPs.forEach(function(o){
+    if(o.status==='concluido')return;
+    var d=diasP(o.prazo);
+    if(d!==null&&d<0) items.push({cls:'',icon:'🔴',msg:'<strong>OP ATRASADA '+Math.abs(d)+'d:</strong> '+o.numero+' · '+o.cliente+' · '+o.produto+' · '+o.status,t:o.prazo});
+    else if(d===0) items.push({cls:'',icon:'🔴',msg:'<strong>PRAZO HOJE:</strong> '+o.numero+' · '+o.cliente+' · '+o.produto,t:'Hoje'});
+    else if(d!==null&&d<=3) items.push({cls:'warn',icon:'🟡',msg:'<strong>PRAZO EM '+d+'d:</strong> '+o.numero+' · '+o.cliente,t:fmtD(o.prazo)});
+    if(o.status==='pintura') items.push({cls:'info',icon:'🎨',msg:'<strong>PINTURA:</strong> '+o.numero+' · '+o.produto+' aguardando inspeção e aprovação',t:''});
+    var matPend=(allSups||[]).filter(function(s){return s.op_id===o.id&&['solicitado','cotando'].includes(s.status)&&s.urgencia==='CRITICO';}).length;
+    if(matPend>0) items.push({cls:'warn',icon:'📦',msg:'<strong>MATERIAL CRÍTICO:</strong> '+o.numero+' · '+matPend+' item(s) de suprimento crítico pendente',t:''});
+  });
+  var exp=(allOPs||[]).filter(function(o){return o.status==='expedicao';});
+  if(exp.length) items.push({cls:'ok',icon:'📦',msg:'<strong>'+exp.length+' OP(s) pronta(s) para expedição</strong> · aguardando carga e despacho',t:''});
+  var supAtras=(allSups||[]).filter(function(s){return s.status==='atrasado';});
+  if(supAtras.length) items.push({cls:'',icon:'⏰',msg:'<strong>'+supAtras.length+' compra(s) em atraso:</strong> '+supAtras.map(function(s){return s.material;}).slice(0,3).join(', '),t:''});
+  document.getElementById('badgeAlertas').textContent=items.filter(function(i){return!i.cls||i.cls==='warn';}).length;
+  if(!items.length){el.innerHTML='<div class="empty"><div class="empty-icon">✓</div>Nenhum alerta operacional</div>';return;}
+  el.innerHTML=items.map(function(a){return'<div class="alert-item '+esc(a.cls)+'"><div class="alert-icon">'+a.icon+'</div><div class="alert-txt">'+a.msg+'</div><div class="alert-time">'+esc(a.t)+'</div></div>';}).join('');
+}
+
+// ── PAINEL TV ─────────────────────────────────────────────
+function renderTV() {
+  var el=document.getElementById('tvWrap');
+  var urg=(allOPs||[]).filter(function(o){var d=diasP(o.prazo);return d!==null&&d<=0&&o.status!=='concluido';}).sort(function(a,b){return diasP(a.prazo)-diasP(b.prazo);});
+  var fab=(allOPs||[]).filter(function(o){return['corte','dobra','montagem','solda'].includes(o.status);});
+  var exp=(allOPs||[]).filter(function(o){return o.status==='expedicao';});
+  var pint=(allOPs||[]).filter(function(o){return o.status==='pintura';});
+  function rows(ops){
+    if(!ops.length)return'<div style="padding:18px;text-align:center;color:#888;font-family:var(--mono);font-size:11.5px">Nenhuma OP</div>';
+    return ops.slice(0,5).map(function(o){
+      var d=diasP(o.prazo);
+      var pc=d!==null&&d<0?'late':d!==null&&d<=3?'warn':'ok';
+      var pt=d===null?'':d<0?'-'+Math.abs(d)+'d':d===0?'HOJE':fmtD(o.prazo);
+      return'<div class="tv-row"><span class="tv-op">'+esc(o.numero)+'</span><span class="tv-desc">'+esc(o.produto)+' <span style="color:#888;font-size:12px">· '+esc(o.cliente)+'</span></span><span class="tv-prazo '+pc+'">'+esc(pt)+'</span></div>';
+    }).join('');
+  }
+  el.innerHTML=
+    '<div class="tv-panel"><div class="tv-hd" style="background:#B91C1C"><span class="tv-hd-title">🔴 Urgentes/Atrasadas</span><span class="tv-hd-count">'+urg.length+'</span></div>'+rows(urg)+'</div>'+
+    '<div class="tv-panel"><div class="tv-hd" style="background:#0369A1"><span class="tv-hd-title">⚙ Em Fabricação</span><span class="tv-hd-count">'+fab.length+'</span></div>'+rows(fab)+'</div>'+
+    '<div class="tv-panel"><div class="tv-hd" style="background:#D97706"><span class="tv-hd-title">📦 Pronto Expedição</span><span class="tv-hd-count">'+exp.length+'</span></div>'+rows(exp)+'</div>'+
+    '<div class="tv-panel"><div class="tv-hd" style="background:#2563EB"><span class="tv-hd-title">🎨 Em Pintura</span><span class="tv-hd-count">'+pint.length+'</span></div>'+rows(pint)+'</div>';
+}
+
+// ── SUPRIMENTOS ───────────────────────────────────────────
+function populateOpSelect() {
+  var sel=document.getElementById('supOP');
+  sel.innerHTML='<option value="">Sem vínculo</option>'+
+    (allOPs||[]).filter(function(o){return o.status!=='concluido';}).map(function(o){return'<option value="'+o.id+'">'+esc(o.numero)+' · '+esc(o.cliente)+'</option>';}).join('');
+}
+
+function renderSup(sups) {
+  var el=document.getElementById('tblSup');
+  if(!sups.length){el.innerHTML='<div class="empty"><div class="empty-icon">📦</div>Nenhuma solicitação cadastrada</div>';return;}
+  el.innerHTML='<table><thead><tr><th>Material</th><th>OP</th><th>Qtd</th><th>Urgência</th><th>Status</th><th>Fornecedor</th><th>Prazo</th><th>Resp.</th><th>Ações</th></tr></thead><tbody>'+
+    sups.map(function(s){
+      var op=allOPs.find(function(o){return o.id===s.op_id;});
+      return'<tr><td class="t-bold t-clip">'+esc(s.material)+'</td>'+
+        '<td class="t-mono" style="font-size:11px;white-space:nowrap">'+esc(op?op.numero:'–')+'</td>'+
+        '<td class="t-mono">'+esc(s.quantidade||'–')+'</td>'+
+        '<td>'+urgBadge(s.urgencia)+'</td>'+
+        '<td>'+supStBadge(s.status)+'</td>'+
+        '<td class="t-sm t-clip">'+esc(s.fornecedor||'–')+'</td>'+
+        '<td>'+prazoBadge(s.prazo_necessario,true)+'</td>'+
+        '<td class="t-sm">'+esc(s.responsavel||'–')+'</td>'+
+        '<td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="abrirSupSt(\''+s.id+'\')">Atualizar</button></td></tr>';
+    }).join('')+'</tbody></table>';
+}
+
+function renderSupKpis() {
+  var crit=(allSups||[]).filter(function(s){return ['atrasado','solicitado'].includes(s.status)&&s.urgencia==='CRITICO';}).length;
+  var comp=(allSups||[]).filter(function(s){return['cotando','comprado'].includes(s.status);}).length;
+  var ag=(allSups||[]).filter(function(s){return s.status==='comprado';}).length;
+  var mes=new Date().getMonth()+'-'+new Date().getFullYear();
+  var ent=(allSups||[]).filter(function(s){if(s.status!=='entregue'||!s.updated_at)return false;var d=new Date(s.updated_at);return(d.getMonth()+'-'+d.getFullYear())===mes;}).length;
+  document.getElementById('supKCrit').textContent=crit;
+  document.getElementById('supKComp').textContent=comp;
+  document.getElementById('supKAg').textContent=ag;
+  document.getElementById('supKEnt').textContent=ent;
+}
+
+function filtrarSup() {
+  var q=(document.getElementById('supBusca').value||'').toLowerCase();
+  var st=document.getElementById('supFStatus').value;
+  var ug=document.getElementById('supFUrg').value;
+  renderSup((allSups||[]).filter(function(s){
+    var op=allOPs.find(function(o){return o.id===s.op_id;});
+    var matchQ=!q||[s.material,s.descricao,s.fornecedor,op?op.numero:'',op?op.cliente:''].some(function(f){return(f||'').toLowerCase().includes(q);});
+    return matchQ&&(!st||s.status===st)&&(!ug||s.urgencia===ug);
+  }));
+}
+
+function abrirNovaSolicitacao() {
+  supEditando=null;
+  document.getElementById('mSupTitle').textContent='Nova Solicitação de Material';
+  ['supMat','supDesc','supQtd','supPz','supResp','supForn','supObs'].forEach(function(id){document.getElementById(id).value='';});
+  document.getElementById('supUrg').value='NORMAL';
+  populateOpSelect();
+  document.getElementById('modalSup').classList.add('open');
+}
+
+async function salvarSup() {
+  var mat=document.getElementById('supMat').value.trim();
+  if(!mat){toast('Material obrigatório','error');return;}
+  var payload={
+    material:mat,
+    descricao:document.getElementById('supDesc').value.trim(),
+    quantidade:document.getElementById('supQtd').value.trim(),
+    urgencia:document.getElementById('supUrg').value,
+    prazo_necessario:document.getElementById('supPz').value||null,
+    responsavel:document.getElementById('supResp').value.trim(),
+    fornecedor:document.getElementById('supForn').value.trim(),
+    obs:document.getElementById('supObs').value.trim(),
+    op_id:document.getElementById('supOP').value||null,
+    status:'solicitado'
+  };
+  var r=await sbFetch('ef_sup',{method:'POST',body:[payload]});
+  if(r.error){toast('Erro: '+r.error.message,'error');return;}
+  if(r.data&&r.data[0])allSups.unshift(r.data[0]);
+  toast('Solicitação criada');
+  closeModal('modalSup');
+  renderSup(allSups);renderSupKpis();renderDash();
+  // Log se tiver OP vinculada
+  if(payload.op_id){
+    var op=allOPs.find(function(o){return o.id===payload.op_id;});
+    if(op)await regLog(payload.op_id,op.numero,'SUPRIMENTO','Material solicitado: '+mat,payload.responsavel,'Urgência: '+payload.urgencia);
+  }
+}
+
+var supAtualizando=null;
+function abrirSupSt(id) {
+  supAtualizando=id;
+  var s=allSups.find(function(x){return x.id===id;});
+  if(!s)return;
+  document.getElementById('supStNovo').value=s.status;
+  document.getElementById('supStForn').value=s.fornecedor||'';
+  document.getElementById('supStPrev').value='';
+  document.getElementById('supStObs').value='';
+  document.getElementById('modalSupSt').classList.add('open');
+}
+
+async function confirmarSupSt() {
+  if(!supAtualizando)return;
+  var s=allSups.find(function(x){return x.id===supAtualizando;});
+  if(!s)return;
+  var novoSt=document.getElementById('supStNovo').value;
+  var forn=document.getElementById('supStForn').value.trim();
+  var prev=document.getElementById('supStPrev').value;
+  var obs=document.getElementById('supStObs').value.trim();
+  var payload={status:novoSt};
+  if(forn)payload.fornecedor=forn;
+  if(prev)payload.previsao_entrega=prev;
+  var r=await sbFetch('ef_sup',{method:'PATCH',filters:[['id','eq.'+supAtualizando]],body:payload});
+  if(r.error){toast('Erro: '+r.error.message,'error');return;}
+  Object.assign(s,payload);
+  if(s.op_id){
+    var op=allOPs.find(function(o){return o.id===s.op_id;});
+    if(op)await regLog(s.op_id,op.numero,'SUPRIMENTO','Material: '+s.material+' → '+novoSt,(forn||'Sistema'),obs);
+  }
+  closeModal('modalSupSt');
+  renderSup(allSups);renderSupKpis();renderDash();gerarAlertas();
+  toast('Suprimento atualizado');
+}
+
+// ── RELÓGIO ───────────────────────────────────────────────
+function updateRelogio() {
+  var el=document.getElementById('tbRelogio');
+  if(el){var n=new Date();el.textContent=n.toLocaleDateString('pt-BR')+' · '+n.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
+}
+setInterval(updateRelogio,60000);
+
+
+// ── EXPORTAÇÃO CSV ────────────────────────────────────────────
+function toCSV(rows, cols) {
+  if (!rows.length) return '';
+  var NL = String.fromCharCode(10);
+  var SEP = ';';
+  var BOM = String.fromCharCode(0xFEFF);
+  var header = cols.map(function(c){return c.label;}).join(SEP);
+  var body = rows.map(function(r){
+    return cols.map(function(c){
+      var v = r[c.key] != null ? String(r[c.key]) : '';
+      v = v.replace(/"/g,'""');
+      return v.indexOf(SEP)>=0||v.indexOf('"')>=0 ? '"'+v+'"' : v;
+    }).join(SEP);
+  }).join(NL);
+  return BOM + header + NL + body;
+}
+
+function downloadCSV(csv, filename) {
+  var blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportarCSV() {
+  var hoje = new Date().toISOString().split('T')[0];
+
+  // OPs
+  var opsCSV = toCSV(allOPs, [
+    {key:'numero',label:'Numero OP'},
+    {key:'cliente',label:'Cliente'},
+    {key:'produto',label:'Produto'},
+    {key:'categoria',label:'Categoria'},
+    {key:'status',label:'Status'},
+    {key:'prioridade',label:'Prioridade'},
+    {key:'prazo',label:'Prazo'},
+    {key:'responsavel',label:'Responsavel'},
+    {key:'obs',label:'Observacoes'},
+    {key:'created_at',label:'Criado em'},
+  ]);
+  downloadCSV(opsCSV, 'ENGEFABRI_OPs_'+hoje+'.csv');
+
+  setTimeout(function() {
+    // Suprimentos
+    var supCSV = toCSV(allSups.map(function(s){
+      var op = allOPs.find(function(o){return o.id===s.op_id;});
+      return Object.assign({}, s, {op_numero: op ? op.numero : '–', op_cliente: op ? op.cliente : '–'});
+    }), [
+      {key:'op_numero',label:'OP Vinculada'},
+      {key:'op_cliente',label:'Cliente'},
+      {key:'material',label:'Material'},
+      {key:'descricao',label:'Descricao'},
+      {key:'quantidade',label:'Quantidade'},
+      {key:'urgencia',label:'Urgencia'},
+      {key:'status',label:'Status'},
+      {key:'fornecedor',label:'Fornecedor'},
+      {key:'prazo_necessario',label:'Prazo Necessario'},
+      {key:'previsao_entrega',label:'Previsao Entrega'},
+      {key:'responsavel',label:'Responsavel'},
+      {key:'obs',label:'Observacoes'},
+      {key:'created_at',label:'Criado em'},
+    ]);
+    downloadCSV(supCSV, 'ENGEFABRI_Suprimentos_'+hoje+'.csv');
+  }, 400);
+
+  setTimeout(function() {
+    // Logs
+    var logCSV = toCSV(allLogs, [
+      {key:'op_numero',label:'OP'},
+      {key:'tipo',label:'Tipo'},
+      {key:'descricao',label:'Descricao'},
+      {key:'responsavel',label:'Responsavel'},
+      {key:'obs',label:'Observacao'},
+      {key:'created_at',label:'Data'},
+    ]);
+    downloadCSV(logCSV, 'ENGEFABRI_Log_'+hoje+'.csv');
+  }, 800);
+
+  toast('Exportando 3 arquivos CSV...');
+}
+
+// ── BOOT ──────────────────────────────────────────────────
+// Boot seguro
+window.addEventListener('DOMContentLoaded', function() {
+  try {
+    loadAll();
+  } catch(e) {
+    console.error('ENGEFABRI boot error:', e);
+    document.getElementById('view-dashboard').innerHTML =
+      '<div style="padding:40px;text-align:center;font-family:DM Sans,Arial,sans-serif">' +
+      '<div style="font-size:32px;margin-bottom:12px">⚠</div>' +
+      '<div style="font-size:16px;font-weight:600;margin-bottom:8px">Erro ao iniciar</div>' +
+      '<div style="font-size:13px;color:#78716C;margin-bottom:16px">' + e.message + '</div>' +
+      '<button onclick="location.reload()" style="padding:8px 20px;background:#1C1917;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px">Recarregar</button>' +
+      '</div>';
+  }
+});
+</script>
+</body>
+</html>
